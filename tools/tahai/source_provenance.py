@@ -73,6 +73,9 @@ def capture(root, build_directory):
     # junction may place its data on another disk; record that resolved target
     # as well so changing the junction invalidates the release snapshot.
     build_directory = Path(os.path.abspath(build_directory))
+    # Resolve ancestor aliases (including Windows short names) without following
+    # the dedicated leaf output junction. Its logical owner remains source/out.
+    build_directory = build_directory.parent.resolve(strict=True) / build_directory.name
     build_directory.relative_to(Path(record["sourceRoot"]) / "out")
     resolved_build = build_directory.resolve(strict=True)
     if not resolved_build.is_dir():

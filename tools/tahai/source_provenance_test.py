@@ -14,6 +14,42 @@ from source_provenance import capture, capture_source, git as source_git, write_
 
 
 class SourceProvenanceTest(unittest.TestCase):
+    def test_build_parent_alias_preserves_the_owned_output_junction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve()
+            root = parent / "source"
+            (root / "out").mkdir(parents=True)
+            target = parent / "external-output"
+            target.mkdir()
+            (target / "args.gn").write_text("is_debug = false\n")
+            alias = parent / "source-alias"
+            build = root / "out" / "release"
+
+            def link(destination, source):
+                if os.name == "nt":
+                    subprocess.run([os.environ["COMSPEC"], "/c", "mklink", "/J",
+                                    str(destination), str(source)], check=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                    destination.symlink_to(source, target_is_directory=True)
+
+            link(alias, root)
+            link(build, target)
+            try:
+                with mock.patch("source_provenance.capture_source", return_value=(
+                        {"sourceRoot": str(root), "identitySha256": "source",
+                         "identity": {}}, b"")):
+                    record, _ = capture(root, alias / "out" / "release")
+                self.assertEqual(str(build), record["buildDirectory"])
+                self.assertEqual(str(target), record["resolvedBuildDirectory"])
+            finally:
+                for path in (build, alias):
+                    if os.name == "nt":
+                        path.rmdir()  # Remove only the fixture's junction.
+                    else:
+                        path.unlink()
+
     def test_output_junction_binds_its_target_and_rejects_direct_external_path(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory).resolve()

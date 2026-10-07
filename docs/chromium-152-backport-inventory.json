@@ -19,6 +19,14 @@
         "chrome/test/BUILD.gn"
       ],
       "rationale": "Chromium 152 GN check reproduced seven private or missing include-dependency errors. Declare the browser tests' accelerator and browser-window dependencies, the toolbar implementation's skin profile service, and both Mission test targets' key-provider interface. Move mode command value types into a narrowly visible header target shared by UI and app-menu headers, preserving implementation ownership and avoiding a UI/toolbar cycle. Retain GN include checking and existing private dependency boundaries."
+    },
+    {
+      "category": "D",
+      "paths": [
+        "tools/tahai/source_provenance.py",
+        "tools/tahai/source_provenance_test.py"
+      ],
+      "rationale": "Hosted verification reproduced a provenance failure when Windows temp paths used a short ancestor name but the source root resolved to its long name. Canonicalize the output parent before checking source ownership, preserve the dedicated leaf output junction, bind its resolved target, and retain rejection of direct external outputs and escaping paths. The ancestor-alias regression exercises the actual filesystem behavior."
     }
   ],
   "upstream_changes": {
