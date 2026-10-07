@@ -27,6 +27,15 @@
         "tools/tahai/source_provenance_test.py"
       ],
       "rationale": "Hosted verification reproduced a provenance failure when Windows temp paths used a short ancestor name but the source root resolved to its long name. Canonicalize the output parent before checking source ownership, preserve the dedicated leaf output junction, bind its resolved target, and retain rejection of direct external outputs and escaping paths. The ancestor-alias regression exercises the actual filesystem behavior."
+    },
+    {
+      "category": "B",
+      "paths": [
+        "build/rust/std/find_std_rlibs.py",
+        "tools/tahai/rust_stdlib_paths_test.py",
+        "tools/tahai/source_preflight.ps1"
+      ],
+      "rationale": "The exact Chromium 152 stdlib generation action reproduced a cross-volume relpath failure with a dedicated leaf output junction. Retain the upstream physical-path workaround for subst aliases; use the owned logical working directory when the output and toolchain physical drives differ. Reject paths relative to unrelated volumes. Register four path regressions and hash the real generator in source preflight. Compiler pins, crate safety policy, sandbox ownership, and generated target semantics are unchanged."
     }
   ],
   "upstream_changes": {

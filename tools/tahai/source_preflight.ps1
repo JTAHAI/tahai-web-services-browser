@@ -9,7 +9,7 @@ function Get-TahaiSourcePlan([bool]$RenderCss = $true) {
         'capability_review_events', 'local_oi_controls', 'work_modes_events', 'local_oi_navigation')) {
         $plan += [pscustomobject]@{name=$name; tool='node'; arguments=@("tools/tahai/${name}_test.js")}
     }
-    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites', 'midl_dynamic_paths', 'guard_rust_policy')) {
+    foreach ($name in @('source_provenance', 'audit_guard_dependencies', 'check_windows_build_prerequisites', 'midl_dynamic_paths', 'guard_rust_policy', 'rust_stdlib_paths')) {
         $plan += [pscustomobject]@{name=$name; tool='python'; arguments=@("tools/tahai/${name}_test.py")}
     }
     $plan += @(
@@ -32,6 +32,7 @@ function Get-TahaiSourcePlan([bool]$RenderCss = $true) {
 function Get-TahaiSourceScriptRecords([string]$SourceRoot) {
     $paths = @('tools/tahai/verify_source.ps1', 'tools/tahai/source_preflight.ps1',
         'tools/tahai/run_logged.py', 'tools/tahai/source_provenance.py', 'build/toolchain/win/midl.py',
+        'build/rust/std/find_std_rlibs.py',
         'tools/tahai/source_preflight_test_fixture.ps1',
         'tools/tahai/verify_upgrade.ps1', 'tools/tahai/assemble_release_evidence.ps1',
         'chrome/installer/win/tahai_msix/release_evidence.ps1',

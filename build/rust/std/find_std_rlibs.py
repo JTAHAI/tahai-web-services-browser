@@ -20,6 +20,16 @@ EXPECTED_STDLIB_INPUT_REGEX = re.compile(r"([0-9a-z_]+)(?:-([0-9]+))?$")
 RLIB_NAME_REGEX = re.compile(r"lib([0-9a-z_]+)-([0-9a-f]+)\.rlib$")
 
 
+def relative_rustlib_directory(rustlib_dir):
+  try:
+    return os.path.relpath(rustlib_dir, os.path.realpath(os.curdir))
+  except ValueError:
+    # A leaf output junction can live on a different volume while its logical
+    # path remains beneath the source checkout. Preserve that logical path
+    # when the physical output and Rust toolchain have different drive roots.
+    return os.path.relpath(rustlib_dir, os.getcwd())
+
+
 def main():
   parser = argparse.ArgumentParser("find_std_rlibs.py")
   parser.add_argument("--rust-bin-dir",
@@ -58,7 +68,7 @@ def main():
   # (default argument for os.path.relpath) and rustlib_dir are different. The
   # workaround is also dereference os.curdir so that the roots are the same for
   # relative path determination.
-  rustlib_dir = os.path.relpath(rustlib_dir, os.path.realpath(os.curdir))
+  rustlib_dir = relative_rustlib_directory(rustlib_dir)
 
 
   # Copy the rlibs to a predictable location. Whilst we're doing so,
