@@ -71,6 +71,23 @@ class BuildPrerequisiteTest(unittest.TestCase):
         self.assertEqual(13, len(result["errors"]))
         self.assertFalse(self.sdk.exists())
 
+    def test_official_windows_clang_stamp_is_accepted(self):
+        self.write(self.source / "third_party/llvm-build/Release+Asserts/cr_build_revision",
+                   "llvm-test-27,win\n")
+        self.assertEqual([], self.check()["errors"])
+
+    def test_stale_windows_clang_stamp_is_rejected(self):
+        self.write(self.source / "third_party/llvm-build/Release+Asserts/cr_build_revision",
+                   "llvm-test-26,win\n")
+        self.assertTrue(any("Clang stamp" in e for e in self.check()["errors"]))
+
+    def test_other_target_clang_stamp_is_rejected(self):
+        for suffix in ("linux", "android", "win,android"):
+            with self.subTest(suffix=suffix):
+                self.write(self.source / "third_party/llvm-build/Release+Asserts/cr_build_revision",
+                           f"llvm-test-27,{suffix}\n")
+                self.assertTrue(any("Clang stamp" in e for e in self.check()["errors"]))
+
     def test_missing_signing_tool_fails(self):
         (self.sdk / "bin/10.0.28000.0/x64/signtool.exe").unlink()
         self.assertTrue(any("signtool.exe" in e for e in self.check()["errors"]))

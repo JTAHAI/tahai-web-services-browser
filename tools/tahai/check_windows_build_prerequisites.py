@@ -83,7 +83,11 @@ def check(source, sdk, visual_studio, depot_tools, bootstrap_python):
     clang_sub = literal_setting(clang_script, "CLANG_SUB_REVISION")
     clang_pin = f"{clang}-{clang_sub}"
     clang_stamp = source / "third_party/llvm-build/Release+Asserts/cr_build_revision"
-    if not clang_stamp.is_file() or clang_stamp.read_text().strip() != clang_pin:
+    # Chromium's updater appends the configured target_os to the package pin.
+    # This lane is Windows-only; retain support for the recovered plain stamp
+    # while rejecting another revision or a stamp for a different target OS.
+    clang_stamp_text = clang_stamp.read_text().strip() if clang_stamp.is_file() else ""
+    if clang_stamp_text not in (clang_pin, f"{clang_pin},win"):
         errors.append(f"Installed Clang stamp does not match source pin {clang_pin}")
     rust_script = source / "tools/rust/update_rust.py"
     rust = literal_setting(rust_script, "RUST_REVISION")
