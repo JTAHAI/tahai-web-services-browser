@@ -14,6 +14,38 @@ from source_provenance import capture, capture_source, git as source_git, write_
 
 
 class SourceProvenanceTest(unittest.TestCase):
+    def test_crlf_extension_fixtures_remain_byte_exact_after_timestamp_changes(self):
+        source = Path(__file__).resolve().parents[2]
+        folder = "chrome/test/data/extensions/good/Extensions/behllobkkfkfnphdnhnkndlbkcpglgmj/1.0.0.0"
+        fixtures = {f"{folder}/style{number}.css":
+                    (source / folder / f"style{number}.css").read_bytes()
+                    for number in (1, 2)}
+        for data in fixtures.values():
+            self.assertIn(b"\r\n", data)
+        for autocrlf in ("false", "true"):
+            with self.subTest(autocrlf=autocrlf), tempfile.TemporaryDirectory(
+                    dir=source / "out", prefix="source-fixture-test-") as directory:
+                root = Path(directory)
+                (root / ".gitattributes").write_bytes((source / ".gitattributes").read_bytes())
+                for name, data in fixtures.items():
+                    path = root / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(data)
+                source_git(root, "init", "--quiet")
+                source_git(root, "config", "user.name", "Source fixture test")
+                source_git(root, "config", "user.email", "fixture@example.invalid")
+                source_git(root, "config", "core.autocrlf", autocrlf)
+                source_git(root, "add", ".")
+                source_git(root, "commit", "--quiet", "-m", "Record byte-exact fixtures")
+                for name, data in fixtures.items():
+                    self.assertEqual(data, source_git(root, "show", f"HEAD:{name}"))
+                    path = root / name
+                    info = path.stat()
+                    os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns + 2_000_000_000))
+                record, patch = capture_source(root)
+                self.assertEqual(b"", patch)
+                self.assertEqual([], record["identity"]["overrides"])
+
     def test_build_parent_alias_preserves_the_owned_output_junction(self):
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory).resolve()

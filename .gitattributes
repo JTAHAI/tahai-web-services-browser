@@ -56,5 +56,9 @@ WATCHLISTS   text eol=lf
 VERSION   text eol=lf
 DIR_METADATA   text eol=lf
 
+# These embedded extension fixtures intentionally contain CRLF bytes. Preserve
+# their committed contents instead of normalizing them during source capture.
+/chrome/test/data/extensions/good/Extensions/behllobkkfkfnphdnhnkndlbkcpglgmj/1.0.0.0/style[12].css -text -eol
+
 # Skip Tricium by default on files in third_party.
 third_party/** -tricium
