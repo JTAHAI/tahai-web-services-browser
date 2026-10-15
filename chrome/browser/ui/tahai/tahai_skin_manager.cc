@@ -1144,7 +1144,8 @@ class SkinManagerView final : public views::DialogDelegate,
     const auto source = browser_;
     const auto target = target_browser->GetWeakPtr();
     const auto profile = target->GetProfile()->GetWeakPtr();
-    auto* target_controller = WindowModeController::GetForBrowser(target.get());
+    auto* target_controller = WindowModeController::GetForBrowser(
+        target->GetBrowserForMigrationOnly());
     auto* source_controller = TargetController();
     if (!target_controller || !source_controller) {
       Status(IDS_TAHAI_SKINS_OPERATION_FAILED);
