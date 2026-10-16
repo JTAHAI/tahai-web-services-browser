@@ -26,6 +26,7 @@ CSS = ''.join(literal(UI, name) for name in (
     'kLocalOiSearchCss', 'kLocalOiGraphExplorerCss', 'kLocalOiControlCss',
     'kLocalOiCapabilityCss', 'kRoyalDefaultCss'))
 CSS += literal((ROOT / 'chrome/browser/ui/webui/tahai/tahai_royal_brand.h').read_text(encoding='utf-8'), 'kRoyalBrandCss')
+CSS += literal(UI, 'kLightSurfaceCss')
 CSP_SOURCE = UI.split('TahaiPlaceholderSource::GetContentSecurityPolicy(', 1)[1].split('TahaiUI::TahaiUI', 1)[0]
 CSP = ' '.join(re.findall(r'return "([^"\n]+;)";', CSP_SOURCE))
 SCRIPT = r"""
@@ -33,6 +34,15 @@ const checks=[];
 const color=(selector,property)=>getComputedStyle(document.querySelector(selector))[property];
 const verify=(name,value)=>{checks.push({name,pass:!!value});};
 const body=document.body;
+const luminance=rgb=>{const c=rgb.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4});return .2126*c[0]+.7152*c[1]+.0722*c[2]};
+const parse=value=>value.match(/[\d.]+/g).map(Number);
+const contrast=(a,b)=>{const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const readable=(selector,background)=>{
+ const foreground=parse(color(selector,'color'));
+ const style=getComputedStyle(document.querySelector(background));
+ const stops=[...style.backgroundImage.matchAll(/rgba?\([^)]+\)/g)].map(m=>parse(m[0]));
+ return (stops.length?stops:[parse(style.backgroundColor)]).every(stop=>contrast(foreground,stop)>=4.5);
+};
 if(!new URLSearchParams(location.search).has('forced'))for(const mode of ['daily','creator','builder','operator','research','support']){
  body.className='theme-dark mode-'+mode+' accent-mode surface-mode';
  verify(mode+' Royal canvas',color('body','backgroundColor')==='rgb(7, 5, 14)');
@@ -42,6 +52,12 @@ if(!new URLSearchParams(location.search).has('forced'))for(const mode of ['daily
  verify(mode+' danger distinguishable',color('.button.danger','backgroundColor')==='rgb(49, 19, 33)');
  body.className='theme-light mode-'+mode+' accent-mode surface-mode';
  verify(mode+' explicit light retained',color('body','backgroundColor')!=='rgb(7, 5, 14)'&&color('.button.primary','color')!=='rgb(27, 9, 46)');
+ for(const selector of ['.oi-metric strong','.oi-metric span','.oi-search-row strong','.oi-search-row span','.oi-control-card h3','.oi-control-card .muted','.oi-control-card .chip']){
+  verify(mode+' readable light '+selector,readable(selector,selector.startsWith('.oi-metric')?'.oi-metric':selector.startsWith('.oi-search-row')?'.oi-search-row':'.oi-control-card'));
+ }
+ verify(mode+' readable primary label',readable('.button.primary','.button.primary'));
+ verify(mode+' readable toolset caption',contrast(parse(color('.mode-surface-menu-copy span','color')),[233,239,244])>=4.5);
+ verify(mode+' preview inherits chosen foreground',color('#skin-studio-preview .muted','color')===color('#skin-studio-preview','color'));
  body.className='theme-dark mode-'+mode+' accent-azure surface-mode';
  verify(mode+' explicit accent retained',getComputedStyle(body).getPropertyValue('--mode-accent').trim()==='#3d7ea6');
  body.className='theme-dark mode-'+mode+' accent-mode surface-quiet';
@@ -87,10 +103,15 @@ class Handler(BaseHTTPRequestHandler):
             content_type = 'text/html; charset=utf-8'
         else:
             data = ('<!doctype html><html><meta charset="utf-8"><style>' + CSS +
-                    '</style><body><header><div class="brand"><img class="mark" src="/brand.png"></div></header>'
+                    '</style><body><main class="shell"><header><div class="brand"><img class="mark" src="/brand.png"></div></header>'
                     '<section class="hero"><h2>THE Operational Browser. <span class="brand-tagline">For Everyone.</span></h2></section>'
                     '<button class="button primary">Search</button><button class="button danger">Remove</button>'
-                    '<article class="oi-state-card">Local OI</article><script>' + SCRIPT + '</script></body></html>').encode()
+                    '<article class="oi-state-card">Local OI</article>'
+                    '<div class="mode-surface-menu-copy"><span>Readable caption</span></div>'
+                    '<article class="oi-metric"><span>Evidence markers</span><strong>0</strong></article>'
+                    '<article class="oi-search-row"><strong>Private local index</strong><span>Explicit local data</span></article>'
+                    '<article class="oi-control-card"><h3>Local OI</h3><p class="muted">Profile settings</p><button class="chip">Enabled</button></article>'
+                    '<article id="skin-studio-preview" style="background:#11213c;color:#f7f9ff"><p class="muted">Preview text</p></article></main><script>'  + SCRIPT + '</script></body></html>').encode()
             content_type = 'text/html; charset=utf-8'
         self.send_response(200)
         self.send_header('Content-Type', content_type)
