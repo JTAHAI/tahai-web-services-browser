@@ -450,6 +450,7 @@ static_library("ui") {
       "tahai/tahai_environment_guard_registry.h",
       "tahai/tahai_finder.cc",
       "tahai/tahai_finder.h",
+      "tahai/tahai_native_dialog_owner.h",
       "tahai/tahai_guard_panel.cc",
       "tahai/tahai_guard_panel.h",
       "tahai/tahai_identity_lane.cc",

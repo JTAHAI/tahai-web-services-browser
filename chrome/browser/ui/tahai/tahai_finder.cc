@@ -20,6 +20,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tahai/tahai_native_dialog_owner.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -216,6 +217,11 @@ class FinderView final : public views::DialogDelegate,
  private:
   void WindowClosing() override {
     Detach();
+    search_->set_controller(nullptr);
+    buttons_.clear();
+    search_ = nullptr;
+    status_ = nullptr;
+    rows_ = nullptr;
     views::DialogDelegate::WindowClosing();
   }
 
@@ -436,11 +442,10 @@ void ShowFinder(Browser* browser) {
     existing->FocusSearch();
     return;
   }
-  auto* dialog = new FinderView(browser);
+  auto dialog = std::make_unique<FinderView>(browser);
   existing = dialog->GetWeakPtr();
-  auto* widget = views::DialogDelegate::CreateDialogWidget(
-      dialog, browser->GetWindow()->GetNativeWindow(),
-      browser->GetWindow()->GetNativeWindow());
+  auto* widget = CreateOwnedNativeDialog(
+      std::move(dialog), browser->GetWindow()->GetNativeWindow());
   widget->Show();
 }
 

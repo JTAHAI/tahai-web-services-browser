@@ -18,6 +18,7 @@
 #include "chrome/browser/tahai_guard/guard_profile_service_factory.h"
 #include "chrome/browser/tahai_guard/tahai_guard_configuration_registry.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tahai/tahai_native_dialog_owner.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/common/pref_names.h"
@@ -499,9 +500,8 @@ void ShowGuardPanel(Browser* browser) {
       widget->Close();
     }
   }
-  views::DialogDelegate::CreateDialogWidget(
-      new GuardPanelView(browser), browser->GetWindow()->GetNativeWindow(),
-      browser->GetWindow()->GetNativeWindow())
+  CreateOwnedNativeDialog(std::make_unique<GuardPanelView>(browser),
+                          browser->GetWindow()->GetNativeWindow())
       ->Show();
 }
 

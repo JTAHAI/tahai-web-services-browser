@@ -3472,6 +3472,12 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
     }
 
     case SplitTabChange::Type::kContentsChanged: {
+      // CloseAllTabs changes the model selection before the corresponding
+      // contents views are reattached. Those views may still represent a
+      // different split; do not reorder them while tearing down the window.
+      if (browser_->tab_strip_model()->closing_all()) {
+        break;
+      }
       const tabs::TabInterface* active_tab =
           browser_->tab_strip_model()->GetActiveTab();
 

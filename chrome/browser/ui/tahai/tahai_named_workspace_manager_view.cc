@@ -15,6 +15,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tahai/tahai_native_dialog_owner.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/tahai/tahai_named_workspace_controller.h"
@@ -469,9 +470,8 @@ void ShowNamedWorkspaceManager(Browser* browser) {
       return;
     }
   }
-  views::DialogDelegate::CreateDialogWidget(
-      new NamedWorkspaceManagerView(browser),
-      browser->GetWindow()->GetNativeWindow(),
+  CreateOwnedNativeDialog(
+      std::make_unique<NamedWorkspaceManagerView>(browser),
       browser->GetWindow()->GetNativeWindow())
       ->Show();
 }

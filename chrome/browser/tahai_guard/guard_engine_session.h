@@ -59,6 +59,13 @@ class GuardEngineSession final {
   void SetFailureCallback(base::OnceClosure callback);
   bool ready() const;
   size_t pending_requests_for_testing() const;
+  // Identifies only this session's launched utility, never another profile.
+  base::ProcessId owned_process_id_for_testing() const {
+    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+    return owned_process_ && owned_process_->data.process.IsValid()
+               ? owned_process_->data.process.Pid()
+               : base::kNullProcessId;
+  }
 
  private:
   enum class State { kIdle, kCompiling, kReady, kUnusable, kStopped };

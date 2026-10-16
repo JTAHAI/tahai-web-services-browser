@@ -22,6 +22,7 @@
 #include "chrome/browser/tahai_skins/skin_profile_service.h"
 #include "chrome/browser/tahai_skins/skin_profile_service_factory.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tahai/tahai_native_dialog_owner.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/dialogs/browser_dialogs.h"
@@ -1582,11 +1583,10 @@ void ShowSkinManager(Browser* browser) {
     }
     return;
   }
-  auto* view = new SkinManagerView(browser);
+  auto view = std::make_unique<SkinManagerView>(browser);
   OpenManagers()[browser->GetProfile()] = view->GetWeakPtr();
-  views::DialogDelegate::CreateDialogWidget(
-      view, browser->GetWindow()->GetNativeWindow(),
-      browser->GetWindow()->GetNativeWindow())
+  CreateOwnedNativeDialog(std::move(view),
+                          browser->GetWindow()->GetNativeWindow())
       ->Show();
 }
 }  // namespace tahai::skins

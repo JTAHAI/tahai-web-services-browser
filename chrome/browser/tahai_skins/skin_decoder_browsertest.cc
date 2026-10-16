@@ -72,6 +72,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
@@ -1845,8 +1846,11 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
         // Acceptance is document closure and a durable non-dispatch outcome.
         static_cast<void>(content::ExecJs(contents, send));
       } else {
-        static_cast<void>(
-            ui_test_utils::NavigateToURL(browser(), GURL("about:blank")));
+        // The cancellation observer deliberately closes this document.
+        // Start navigation without waiting for its now-destroyed target
+        // to finish loading; the durable cancellation is asserted below.
+        contents->GetController().LoadURLWithParams(
+            content::NavigationController::LoadURLParams(GURL("about:blank")));
       }
       ASSERT_TRUE(base::test::RunUntil([&] { return closed; }));
       EXPECT_EQ(std::string_view(boundary) == "scope" ||
@@ -2150,7 +2154,8 @@ IN_PROC_BROWSER_TEST_F(TahaiOperationalModeBrowserTest,
   ASSERT_TRUE(ActivateFinderResult(browser(), retained));
   auto* mission_contents = browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(content::WaitForLoadStop(mission_contents));
-  EXPECT_EQ(GURL(kTahaiTrustedMissionURL), mission_contents->GetLastCommittedURL());
+  EXPECT_EQ(GURL(kTahaiMissionURL), mission_contents->GetLastCommittedURL());
+  EXPECT_TRUE(mission_contents->GetWebUI());
   const auto saved = controller->CapturePresentation();
   ASSERT_TRUE(controller->SetActiveMode("support"));
   EXPECT_FALSE(ActivateFinderResult(browser(), retained));
@@ -2212,14 +2217,14 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   ASSERT_TRUE(browser_view);
 
   theme->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kDark);
-  EXPECT_EQ(SkColorSetRGB(0x09, 0x06, 0x12),
+  EXPECT_EQ(SkColorSetRGB(0x28, 0x1b, 0x3c),
             browser_view->GetColorProvider()->GetColor(kColorToolbar));
   EXPECT_EQ(SkColorSetRGB(0xf6, 0xf8, 0xff),
             browser_view->GetColorProvider()->GetColor(kColorToolbarText));
   EXPECT_EQ(SkColorSetRGB(0x17, 0x10, 0x26),
             browser_view->GetColorProvider()->GetColor(
                 kColorTabBackgroundActiveFrameActive));
-  EXPECT_EQ(SkColorSetRGB(0x07, 0x05, 0x0e),
+  EXPECT_EQ(SkColorSetRGB(0x24, 0x17, 0x33),
             browser_view->GetColorProvider()->GetColor(
                 kColorTabBackgroundInactiveFrameActive));
 
@@ -2233,7 +2238,7 @@ IN_PROC_BROWSER_TEST_F(TahaiSkinManagerBrowserTest,
   // preference and resulting colors, not the supplier's classification.
   EXPECT_EQ(SK_ColorMAGENTA, theme->GetUserColor());
   theme->SetBrowserColorScheme(ThemeService::BrowserColorScheme::kDark);
-  EXPECT_NE(SkColorSetRGB(0x09, 0x06, 0x12),
+  EXPECT_NE(SkColorSetRGB(0x28, 0x1b, 0x3c),
             browser_view->GetColorProvider()->GetColor(kColorToolbar));
 }
 

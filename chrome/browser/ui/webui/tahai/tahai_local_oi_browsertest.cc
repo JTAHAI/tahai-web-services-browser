@@ -57,6 +57,13 @@ class TahaiLocalOiBrowserTest : public InProcessBrowserTest {
     command_line->AppendSwitch(switches::kNoProxyServer);
   }
 
+  void SetUpOnMainThread() override {
+    InProcessBrowserTest::SetUpOnMainThread();
+    // Rules become immutable when BrowserTestBase initializes the network
+    // process after this hook; the test body only controls its loader.
+    host_resolver()->AddRule("probe.example.com", "93.184.215.14");
+  }
+
   content::WebContents* NavigateToLocalOi() {
     EXPECT_TRUE(
         ui_test_utils::NavigateToURL(browser(), GURL(kTahaiLocalOiURL)));
@@ -405,7 +412,6 @@ IN_PROC_BROWSER_TEST_F(TahaiLocalOiBrowserTest,
                        LateInspectionCannotPersistAfterSupportReload) {
   // Control the browser-process loader so this test sends no external traffic
   // and can complete the request strictly after its initiating document dies.
-  host_resolver()->AddRule("probe.example.com", "93.184.215.14");
   base::test::TestFuture<mojo::PendingReceiver<network::mojom::URLLoader>,
                         mojo::PendingRemote<network::mojom::URLLoaderClient>>
       request;

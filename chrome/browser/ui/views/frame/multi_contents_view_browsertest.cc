@@ -69,7 +69,6 @@
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
@@ -100,6 +99,8 @@
 #include "ui/base/ozone_buildflags.h"
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/events/event.h"
+#include "ui/events/keycodes/dom/dom_code.h"
+#include "ui/events/keycodes/dom/dom_key.h"
 #include "ui/ozone/public/ozone_platform.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/scroll_view.h"
@@ -240,6 +241,7 @@ class TahaiWorkspaceVisualInterruption : public BrowserCollectionObserver,
 
   void OnTabGroupChanged(const TabGroupChange& change) override {
     if (change.type != TabGroupChange::kVisualsChanged ||
+        !change.GetVisualsChange()->new_visuals ||
         change.GetVisualsChange()->new_visuals->title() != u"Restored first") {
       return;
     }
@@ -636,7 +638,9 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
       EXPECT_EQ(collapsed ? views::ScrollView::ScrollBarMode::kHiddenButEnabled
                            : views::ScrollView::ScrollBarMode::kEnabled,
                 scroll->GetVerticalScrollBarMode());
+      bool started_focus_traversal = false;
       for (size_t index = 0; index < actions.size(); ++index) {
+        SCOPED_TRACE(actions[index]);
         auto* button = rail->module_button_for_testing(index);
         ASSERT_TRUE(button);
         ASSERT_TRUE(button->GetVisible());
@@ -647,8 +651,18 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
         } else {
           EXPECT_EQ(tahai::GetNativeModeActionCatalog()[index].label, button->GetText());
         }
-        // Tab traversal must include controls outside the original viewport.
-        if (index == 0) {
+        // Disabled native commands remain visible but are correctly skipped
+        // by keyboard traversal (for example Exit multi-view in one pane).
+        const bool command_enabled = chrome::IsCommandEnabled(
+            browser(), tahai::GetNativeModeActionCatalog()[index].command_id);
+        ASSERT_EQ(command_enabled, button->GetEnabled());
+        if (!command_enabled) {
+          EXPECT_FALSE(button->IsFocusable());
+          continue;
+        }
+        // Tab traversal must include enabled controls below the viewport.
+        if (!started_focus_traversal) {
+          started_focus_traversal = true;
           button->RequestFocus();
         } else {
           view->GetFocusManager()->AdvanceFocus(false);
@@ -1194,7 +1208,7 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_FALSE(controller->surface_design());
   // A different trusted TAHAI route cannot invoke Studio's geometry bridge.
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiMissionURL,
-                                           "TAHAI Mission Control", "Mission"));
+                                           "Mission Control", "Mission"));
   ASSERT_TRUE(content::ExecJs(contents, R"JS(
     chrome.send('previewTahaiSurface', [{version: 1, nodes: [{kind:'pane', pane:0, role:'working'}],
       rail_dock:'trailing', gap:8, narrow_width:640, short_height:360, keyboard_order:[0]}]);
@@ -1528,6 +1542,21 @@ IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
   EXPECT_FALSE(multi_contents_view()->IsInSplitView());
   EXPECT_EQ(model->GetActiveWebContents(), active_contents);
   EXPECT_EQ(model->count(), 3);
+}
+
+IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
+                       TahaiClosingWindowWithInactiveSplitDoesNotReattachPanes) {
+  // Closing the foreground single tab activates an existing split in the
+  // model before its contents views are attached. Closing the split members
+  // must not assume that the previous single-tab view already contains them.
+  Browser* closing = CreateBrowser(browser()->GetProfile());
+  AddBlankTabsUntilCount(closing, 4u);
+  ASSERT_TRUE(chrome::OpenTahaiQuadView(closing));
+  AddBlankTabsUntilCount(closing, 5u);
+  closing->tab_strip_model()->ActivateTabAt(4);
+  ASSERT_FALSE(closing->tab_strip_model()->GetActiveTab()->IsSplit());
+  CloseBrowserSynchronously(closing);
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(MultiContentsViewBrowserTest,
@@ -2012,7 +2041,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
   ASSERT_TRUE(content::ExecJs(
       contents,
       "window.tahaiSavedResult='pending';"
-      "const railModule=document.querySelector('[data-tahai-rail-module=downloads]');"
+      "const railModule=document.querySelector('[data-tahai-rail-module][value=downloads]');"
       "railModule.checked=true;railModule.dispatchEvent(new Event('change',{bubbles:true}))"));
   ASSERT_TRUE(base::test::RunUntil([&] {
     return content::EvalJs(contents, "window.tahaiSavedResult === 'saved'")
@@ -2109,22 +2138,31 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
     return content::EvalJs(contents,
         "document.querySelector('#skin-studio-status').textContent.includes('Validated and saved')").ExtractBool();
   }));
-  ASSERT_TRUE(ui_test_utils::BringBrowserWindowToFront(browser()));
+  // Route trusted input through the renderer test API. OS ui_controls
+  // is reserved for interactive_ui_tests and CHECKs in browser_tests.
+  contents->Focus();
+  auto send_key = [&](ui::DomKey key, ui::DomCode code,
+                      ui::KeyboardCode key_code, bool control) {
+    content::SimulateKeyPress(contents, key, code, key_code, control,
+                              false, false, false);
+    content::RunUntilInputProcessed(
+        contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
+  };
   ASSERT_TRUE(content::ExecJs(contents,
       "document.querySelector('#skin-studio-simulation-inputs input[type=password]').focus()"));
-  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_X, false, false, false, false));
+  send_key(ui::DomKey::FromCharacter('x'), ui::DomCode::US_X, ui::VKEY_X, false);
   EXPECT_FALSE(content::EvalJs(contents,
       "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value").ExtractString().empty());
-  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Z, true, false, false, false));
+  send_key(ui::DomKey::FromCharacter('z'), ui::DomCode::US_Z, ui::VKEY_Z, true);
   EXPECT_EQ("", content::EvalJs(contents,
       "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value"));
   EXPECT_TRUE(content::EvalJs(contents,
       "document.querySelector('#skin-studio-source').value===window.historyEdited").ExtractBool());
   ASSERT_TRUE(content::ExecJs(contents, "document.querySelector('#skin-studio-source').focus()"));
-  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Z, true, false, false, false));
+  send_key(ui::DomKey::FromCharacter('z'), ui::DomCode::US_Z, ui::VKEY_Z, true);
   EXPECT_TRUE(content::EvalJs(contents,
       "document.querySelector('#skin-studio-source').value===window.historyOriginal").ExtractBool());
-  ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_Y, true, false, false, false));
+  send_key(ui::DomKey::FromCharacter('y'), ui::DomCode::US_Y, ui::VKEY_Y, true);
   EXPECT_TRUE(content::EvalJs(contents,
       "document.querySelector('#skin-studio-source').value===window.historyEdited && "
       "document.querySelector('#skin-studio-simulation-inputs input[type=password]').value===''").ExtractBool());
@@ -5080,7 +5118,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiNewTabLoadsThroughRoute) {
   // cannot pass against Chromium's stock NTP.
   EXPECT_EQ(contents->GetVisibleURL(), chrome::ChromeUINewTabURLAsGURL());
   EXPECT_EQ(content::EvalJs(contents, "document.title").ExtractString(),
-            "New Tab");
+            "TAHAI New Tab");
   EXPECT_TRUE(content::EvalJs(contents, "document.body.innerText")
                   .ExtractString()
                   .find("THE Operational Browser.") !=
@@ -5179,7 +5217,7 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest, TahaiPolicyLoadsThroughRoute) {
       browser()->tab_strip_model()->GetActiveWebContents();
   ASSERT_TRUE(contents);
   ASSERT_TRUE(NavigateAndVerifyTahaiSurface(contents, tahai::kTahaiPolicyURL,
-                                            "Policy",
+                                            "TAHAI Policy",
                                             "Policy can restrict features."));
   EXPECT_TRUE(
       content::EvalJs(contents,
@@ -5349,7 +5387,11 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
                                            "Work Modes", "Use this window's pinned skin"));
   EXPECT_TRUE(content::EvalJs(contents, R"JS(
     new Promise(resolve => {
-      window.tahaiNativeModeRejected = () => resolve(true);
+      const rejected = window.tahaiNativeModeRejected;
+      window.tahaiNativeModeRejected = request => {
+        rejected(request);
+        resolve(true);
+      };
       document.querySelector('[data-skin-action=capture]').click();
     })
   )JS").ExtractBool());
@@ -5684,14 +5726,14 @@ IN_PROC_BROWSER_TEST_F(TahaiWebUIBrowserTest,
     const char* title;
   };
   constexpr SurfaceCommand kSurfaceCommands[] = {
-      {IDC_TAHAI_LAUNCHPAD, tahai::kTahaiNewTabURL, "New Tab"},
+      {IDC_TAHAI_LAUNCHPAD, tahai::kTahaiNewTabURL, "TAHAI New Tab"},
       {IDC_TAHAI_MISSION_CONTROL, tahai::kTahaiMissionURL, "Mission Control"},
       {IDC_TAHAI_COMMAND_CENTER, tahai::kTahaiOpsToolsURL,
        "Operator Command Center"},
       {IDC_TAHAI_WORK_MODES, tahai::kTahaiModesURL, "Work Modes"},
       {IDC_TAHAI_PROFILES, tahai::kTahaiProfilesURL, "Profile Administration"},
       {IDC_TAHAI_SUPPORT, tahai::kTahaiSupportURL, "Support"},
-      {IDC_TAHAI_POLICY, tahai::kTahaiPolicyURL, "Policy"},
+      {IDC_TAHAI_POLICY, tahai::kTahaiPolicyURL, "TAHAI Policy"},
   };
 
   TabStripModel* model = browser()->tab_strip_model();

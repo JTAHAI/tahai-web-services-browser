@@ -106,14 +106,16 @@ struct GuardProcessSnapshot {
   content::ServiceProcessId id;
 };
 
-std::optional<GuardProcessSnapshot> FindRunningGuardService() {
+std::optional<GuardProcessSnapshot> FindRunningGuardService(
+    const GuardEngineSession& session) {
   for (const auto& info :
        content::ServiceProcessHost::GetRunningProcessInfo()) {
     if (!info.IsService<mojom::GuardEngine>()) {
       continue;
     }
     base::Process process = info.GetProcess().Duplicate();
-    if (process.IsValid() && process.IsRunning()) {
+    if (process.IsValid() && process.IsRunning() &&
+        process.Pid() == session.owned_process_id_for_testing()) {
       return GuardProcessSnapshot{std::move(process),
                                   info.service_process_id()};
     }
@@ -135,7 +137,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
 
   std::optional<GuardProcessSnapshot> service;
   ASSERT_TRUE(base::test::RunUntil([&] {
-    service = FindRunningGuardService();
+    service = FindRunningGuardService(session);
     return service.has_value();
   }));
   ASSERT_TRUE(service->process.IsValid());
@@ -145,7 +147,9 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
   auto token = base::win::AccessToken::FromProcess(service->process.Handle());
   ASSERT_TRUE(token);
   EXPECT_TRUE(token->IsRestricted());
-  EXPECT_EQ(SECURITY_MANDATORY_LOW_RID, token->IntegrityLevel());
+  // The default service policy lowers the running utility from Low to
+  // Untrusted after startup (AddDefaultConfigForSandboxedProcess).
+  EXPECT_EQ(SECURITY_MANDATORY_UNTRUSTED_RID, token->IntegrityLevel());
   EXPECT_FALSE(token->IsAppContainer());
 
   BOOL in_job = FALSE;
@@ -174,7 +178,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
   ASSERT_TRUE(configured);
   ASSERT_EQ(Status::kReady, configured->status);
 
-  auto service = FindRunningGuardService();
+  auto service = FindRunningGuardService(session);
   ASSERT_TRUE(service);
   const base::ProcessId crashed_pid = service->process.Pid();
   const content::ServiceProcessId crashed_service_id = service->id;
@@ -188,7 +192,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
   auto restarted = Compile(replacement, "||crash.example^\n");
   ASSERT_TRUE(restarted);
   ASSERT_EQ(Status::kReady, restarted->status);
-  auto replacement_service = FindRunningGuardService();
+  auto replacement_service = FindRunningGuardService(replacement);
   ASSERT_TRUE(replacement_service);
   EXPECT_NE(crashed_pid, replacement_service->process.Pid());
   EXPECT_NE(crashed_service_id, replacement_service->id);

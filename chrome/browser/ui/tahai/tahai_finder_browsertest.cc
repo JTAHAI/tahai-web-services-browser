@@ -9,6 +9,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/accelerator_table.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/tahai/tahai_native_dialog_owner.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -56,6 +57,28 @@ class TahaiFinderBrowserTest : public InProcessBrowserTest {
     InProcessBrowserTest::TearDownOnMainThread();
   }
 };
+
+IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
+                       NativeDialogDelegateIsReleasedAfterWindowClose) {
+  class TrackedDelegate : public views::DialogDelegate {
+   public:
+    explicit TrackedDelegate(bool& destroyed) : destroyed_(destroyed) {
+      SetContentsView(std::make_unique<views::View>());
+    }
+    ~TrackedDelegate() override { destroyed_ = true; }
+   private:
+    bool& destroyed_;
+  };
+  for (int repeat = 0; repeat < 3; ++repeat) {
+    bool destroyed = false;
+    auto* widget = CreateOwnedNativeDialog(
+        std::make_unique<TrackedDelegate>(destroyed),
+        browser()->GetWindow()->GetNativeWindow());
+    widget->Show();
+    widget->CloseNow();
+    ASSERT_TRUE(base::test::RunUntil([&] { return destroyed; }));
+  }
+}
 
 IN_PROC_BROWSER_TEST_F(TahaiFinderBrowserTest,
                        ShortcutSearchEnterAndReopenUseNativeViews) {
