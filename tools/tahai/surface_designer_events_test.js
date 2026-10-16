@@ -58,6 +58,7 @@ function setup(){
   return {source,get,change,parsed,edit,messages,reply,trial,timers,events,advance:ms=>{now+=ms;for(const fn of [...timers.values()])fn()}};
 }
 let checks=0;const check=fn=>{fn();++checks};
+check(()=>{const h=setup();assert.equal(h.get('canvas').role,'group');assert.equal(h.get('canvas')['aria-label'],'Native pane layout preview');assert(h.get('canvas').children.length>0)});
 check(()=>{const h=setup();h.change('node-0-percent','35');assert.equal(h.parsed().operational.surfaces[0].design.nodes[0].percent,35);assert.equal(h.messages.length,0)});
 check(()=>{const h=setup(),stale=h.get('node-0-percent');h.change('choice','second-surface');const before=h.source.value;stale.value='20';stale.dispatchEvent(new Event('change'));assert.equal(h.source.value,before);h.change('node-0-percent','65');assert.equal(h.parsed().operational.surfaces[1].design.nodes[0].percent,65);assert.equal(h.parsed().operational.surfaces[0].design.nodes[0].percent,50)});
 for(const control of ['node-0-kind','node-0-percent','node-0-swap','order-0-1'])check(()=>{

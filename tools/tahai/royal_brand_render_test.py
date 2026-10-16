@@ -58,6 +58,9 @@ if(!new URLSearchParams(location.search).has('forced'))for(const mode of ['daily
  verify(mode+' readable primary label',readable('.button.primary','.button.primary'));
  verify(mode+' readable toolset caption',contrast(parse(color('.mode-surface-menu-copy span','color')),[233,239,244])>=4.5);
  verify(mode+' preview inherits chosen foreground',color('#skin-studio-preview .muted','color')===color('#skin-studio-preview','color'));
+ const title=document.querySelector('.command strong').getBoundingClientRect();
+ const description=document.querySelector('.command .muted').getBoundingClientRect();
+ verify(mode+' command description has its own readable line',description.top>=title.bottom+3);
  body.className='theme-dark mode-'+mode+' accent-azure surface-mode';
  verify(mode+' explicit accent retained',getComputedStyle(body).getPropertyValue('--mode-accent').trim()==='#3d7ea6');
  body.className='theme-dark mode-'+mode+' accent-mode surface-quiet';
@@ -107,6 +110,7 @@ class Handler(BaseHTTPRequestHandler):
                     '<section class="hero"><h2>THE Operational Browser. <span class="brand-tagline">For Everyone.</span></h2></section>'
                     '<button class="button primary">Search</button><button class="button danger">Remove</button>'
                     '<article class="oi-state-card">Local OI</article>'
+                    '<button class="command"><span><strong>Open Work Modes</strong><span class="muted">Choose a workspace</span></span><span class="scope">Modes</span></button>'
                     '<div class="mode-surface-menu-copy"><span>Readable caption</span></div>'
                     '<article class="oi-metric"><span>Evidence markers</span><strong>0</strong></article>'
                     '<article class="oi-search-row"><strong>Private local index</strong><span>Explicit local data</span></article>'

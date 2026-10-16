@@ -936,6 +936,11 @@ constexpr char kLocalOiCss[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kLightSurfaceCss[] = R"TAHAI(
+/* Separate command titles from their descriptions at every viewport width. */
+.command{gap:14px;font:inherit;line-height:1.4}
+.command>span:first-child{min-width:0;display:grid;gap:4px}
+.command>span:first-child>.muted{display:block;font-size:.875rem}
+.command .scope{padding-left:8px}
 /* Light surfaces need their own foregrounds, including nested Local OI cards.
    Decorative mode accents remain independent from readable text colors. */
 body.theme-light:is(.mode-daily,.mode-creator,.mode-builder,.mode-operator,.mode-research,.mode-support){--muted:#48617f;--mint:#23634e;--cyan:#285f83;--warn:#795400}

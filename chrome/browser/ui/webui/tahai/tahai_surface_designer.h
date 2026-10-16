@@ -130,7 +130,7 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
       field('Active pane', active));
   append(section, settingsGrid,
       element('p', {id: 'surface-canvas-status', role: 'status', 'aria-live': 'polite'}),
-      element('div', {id: 'surface-canvas', 'aria-label': 'Native pane layout preview'}),
+      element('div', {id: 'surface-canvas', role: 'group', 'aria-label': 'Native pane layout preview'}),
       element('h4', {}, 'Outline and properties'),
       element('ol', {id: 'surface-outline', class: 'list'}),
       element('h4', {}, 'Keyboard pane order'),

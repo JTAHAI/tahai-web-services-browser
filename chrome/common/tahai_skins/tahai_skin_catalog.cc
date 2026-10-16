@@ -85,16 +85,16 @@ std::optional<TahaiSkinAppearance> GetTahaiBuiltInSkinAppearance(
   appearance.high_contrast_tokens =
       tokens("#000000", "#ffffff", "#000000", "#ffff00");
   if (id == "tahai-royal") {
-    // Give the active tab a discernible surface rather than painting it the
-    // same color as the inactive frame. Trusted omnibox/security UI is not
+    // Keep the approved active-tab purple while lifting the frame and rail
+    // from near-black to a visibly purple surface. Trusted omnibox/security UI is not
     // part of the declarative token vocabulary.
     appearance.dark_tokens = TahaiSkinTokenSet{{
-        {"shell_background", "#07050e"},
-        {"toolbar_background", "#090612"},
+        {"shell_background", "#241733"},
+        {"toolbar_background", "#281b3c"},
         {"toolbar_foreground", "#f6f8ff"},
         {"tab_background", "#171026"},
         {"tab_foreground", "#f6f8ff"},
-        {"rail_background", "#100a1b"},
+        {"rail_background", "#281b3c"},
         {"rail_foreground", "#d9e0f2"},
         {"accent", "#c4a5ff"},
         {"panel_background", "#100a1b"},
