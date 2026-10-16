@@ -61,6 +61,12 @@ if(!new URLSearchParams(location.search).has('forced'))for(const mode of ['daily
  const title=document.querySelector('.command strong').getBoundingClientRect();
  const description=document.querySelector('.command .muted').getBoundingClientRect();
  verify(mode+' command description has its own readable line',description.top>=title.bottom+3);
+ for(const theme of ['light','dark']){
+  body.className='theme-'+theme+' mode-'+mode+' accent-mode surface-mode';
+  const editor=document.querySelector('#skin-studio-source').getBoundingClientRect();
+  const container=document.querySelector('#skin-studio-source').parentElement.getBoundingClientRect();
+  verify(mode+' '+theme+' source editor uses available width',editor.width>=container.width*.95&&editor.width<=container.width);
+ }
  body.className='theme-dark mode-'+mode+' accent-azure surface-mode';
  verify(mode+' explicit accent retained',getComputedStyle(body).getPropertyValue('--mode-accent').trim()==='#3d7ea6');
  body.className='theme-dark mode-'+mode+' accent-mode surface-quiet';
@@ -110,6 +116,7 @@ class Handler(BaseHTTPRequestHandler):
                     '<section class="hero"><h2>THE Operational Browser. <span class="brand-tagline">For Everyone.</span></h2></section>'
                     '<button class="button primary">Search</button><button class="button danger">Remove</button>'
                     '<article class="oi-state-card">Local OI</article>'
+                    '<div><textarea id="skin-studio-source" class="search" rows="28">{"appearance": {}}</textarea></div>'
                     '<button class="command"><span><strong>Open Work Modes</strong><span class="muted">Choose a workspace</span></span><span class="scope">Modes</span></button>'
                     '<div class="mode-surface-menu-copy"><span>Readable caption</span></div>'
                     '<article class="oi-metric"><span>Evidence markers</span><strong>0</strong></article>'

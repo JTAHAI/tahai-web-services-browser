@@ -936,6 +936,8 @@ constexpr char kLocalOiCss[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kLightSurfaceCss[] = R"TAHAI(
+/* Source editors are textareas, not the nested search inputs styled above. */
+textarea.search{display:block;box-sizing:border-box;width:100%;max-width:100%;resize:vertical}
 /* Separate command titles from their descriptions at every viewport width. */
 .command{gap:14px;font:inherit;line-height:1.4}
 .command>span:first-child{min-width:0;display:grid;gap:4px}
