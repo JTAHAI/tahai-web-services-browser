@@ -42,8 +42,8 @@
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/clipboard/clipboard.h"
-#include "ui/base/clipboard/clipboard_test_util.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/base/clipboard/test/clipboard_test_util.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 

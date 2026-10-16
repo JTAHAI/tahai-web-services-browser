@@ -93,6 +93,16 @@ class Handler(BaseHTTPRequestHandler):
             data = ('window.sent=[];window.chrome={send:(name,args)=>sent.push({name,args})};' +
                     literal(UI, 'kActionsJs')).encode()
             content_type = 'text/javascript'
+        elif self.path == '/support-guard.js':
+            data = ('window.sent=[];window.chrome={send:(name,args)=>sent.push({name,args})};' +
+                    literal(UI, 'kSupportGuardJs')).encode()
+            content_type = 'text/javascript'
+        elif self.path == '/support-guard':
+            data = ('<!doctype html><html><meta charset="utf-8"><link rel="stylesheet" href="/csp.css">'
+                    '<body><main><section class="section"><form id="network-inspection-form"></form></section></main>'
+                    '<script src="/support-guard.js"></script></body></html>').encode()
+            content_type = 'text/html; charset=utf-8'
+            csp = CSP
         elif self.path == '/csp':
             data = ('<!doctype html><html><meta charset="utf-8"><link rel="stylesheet" href="/csp.css">'
                     '<body class="theme-dark mode-daily accent-mode surface-mode">'
@@ -176,6 +186,43 @@ def main():
                             raise SystemExit('Zero renderer checks selected')
                         checks.extend(selected)
                     page.emulate_media(forced_colors='none')
+                    # Exercise actual Support listeners with native callback fixtures.
+                    # These source-render checks do not assert native engine acceptance.
+                    for theme in ('light', 'dark'):
+                        page.goto(f'http://127.0.0.1:{server.server_port}/support-guard', timeout=20000)
+                        page.evaluate('(theme)=>document.body.className="theme-"+theme+" mode-daily accent-mode surface-mode"', theme)
+                        mode = page.locator('#tahai-guard-mode')
+                        apply = page.get_by_role('button', name='Apply mode', exact=True)
+                        checks.append({'name': f'{theme} Guard waits for native availability', 'pass': mode.is_disabled() and apply.is_disabled()})
+                        def guard_state(**overrides):
+                            state = dict(available=True, managed=False, rules_managed=False, private_session=False, mode='balanced', message='Ready')
+                            state.update(overrides)
+                            page.evaluate('(state)=>tahaiGuardConfigurationLoaded({schema_version:1,mode:"balanced",local_statistics_enabled:false,site_overrides:[]},state)', state)
+                        guard_state()
+                        detail = page.locator('#tahai-guard-settings').inner_text()
+                        checks.append({'name': f'{theme} Guard accurately describes bundled lists and ad hiding',
+                                       'pass': all(text in detail for text in ('EasyList', 'EasyPrivacy', 'declarative ad hiding', 'Bundled lists update with the browser')) and 'not available here' not in detail})
+                        for value in ('strict', 'off', 'balanced'):
+                            enabled = mode.is_enabled() and not page.locator(f'#tahai-guard-mode option[value="{value}"]').is_disabled()
+                            checks.append({'name': f'{theme} Guard {value} mode is selectable', 'pass': enabled})
+                            if not enabled:
+                                continue
+                            page.evaluate('sent.length=0')
+                            mode.select_option(value)
+                            apply.click()
+                            checks.append({'name': f'{theme} Guard {value} dispatch preserves configuration',
+                                           'pass': page.evaluate('(value)=>sent.length===1 && sent[0].name==="setTahaiGuardConfiguration" && sent[0].args[0].mode===value && sent[0].args[0].schema_version===1 && sent[0].args[0].site_overrides.length===0', value)})
+                            checks.append({'name': f'{theme} Guard {value} request locks controls while busy', 'pass': mode.is_disabled() and apply.is_disabled()})
+                            page.evaluate('tahaiGuardConfigurationStored(true,"Saved")')
+                            guard_state()
+                        for flag in ('managed', 'private_session', 'available'):
+                            guard_state(**{flag: flag != 'available'})
+                            page.evaluate('sent.length=0;document.querySelector("#tahai-guard-settings form").dispatchEvent(new Event("submit",{cancelable:true}))')
+                            checks.append({'name': f'{theme} Guard {flag} restriction prevents configuration writes',
+                                           'pass': mode.is_disabled() and apply.is_disabled() and page.evaluate('sent.length===0')})
+                        guard_state(rules_managed=True)
+                        checks.append({'name': f'{theme} Guard managed rules keep editor locked without disabling mode choice',
+                                       'pass': page.locator('#tahai-guard-rules').is_disabled() and mode.is_enabled()})
                     # Inspect painted boxes, not just hidden flags or result counts:
                     # author display:grid previously made filtered commands visible.
                     for theme in ('light', 'dark'):

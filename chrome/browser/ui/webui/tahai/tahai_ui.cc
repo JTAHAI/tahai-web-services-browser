@@ -550,20 +550,19 @@ constexpr char kSupportGuardJs[] = R"TAHAI(
   const section = element('section', '', 'section');
   section.id = 'tahai-guard-settings';
   const panel = element('article', '', 'panel');
-  const heading = element('h2', 'TAHAI Guard — local Custom network rules');
-  const detail = element('p', 'Custom rules use the native sandboxed engine. Incognito uses a separate in-memory engine with inherited settings and no decision counters; edit rules from the regular profile. Balanced/Strict default lists, cosmetic filtering, automatic updates and temporary page exceptions are not available here.', 'muted');
+  const heading = element('h2', 'TAHAI Guard — network filtering and ad hiding');
+  const detail = element('p', 'Balanced uses bundled EasyList rules; Strict adds EasyPrivacy and additional tracking rules. Custom uses rules stored in this profile. The native sandboxed engine supports network filtering and declarative ad hiding. Bundled lists update with the browser, not through automatic downloads. Incognito uses a separate in-memory engine with inherited settings and no decision counters; edit rules from the regular profile.', 'muted');
   const form = element('form', '', 'actions');
   const mode = element('select', '', 'button');
   mode.id = 'tahai-guard-mode';
   mode.setAttribute('aria-label', 'TAHAI Guard mode');
   for (const [value, text] of [
     ['off', 'Off'], ['custom', 'Custom network rules'],
-    ['balanced', 'Balanced — default lists unavailable'],
-    ['strict', 'Strict — default lists unavailable']
+    ['balanced', 'Balanced — bundled EasyList'],
+    ['strict', 'Strict — EasyList and EasyPrivacy']
   ]) {
     const option = element('option', text);
     option.value = value;
-    option.disabled = value === 'balanced' || value === 'strict';
     mode.append(option);
   }
   const stats = element('input');

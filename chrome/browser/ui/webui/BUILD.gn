@@ -457,6 +457,8 @@ if (is_win) {
       "//net:test_support",
       "//services/network/public/cpp",
       "//testing/gtest",
+      "//ui/base/clipboard",
+      "//ui/base/clipboard:clipboard_test_support",
       "//url",
     ]
   }
