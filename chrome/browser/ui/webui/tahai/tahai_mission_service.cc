@@ -929,6 +929,12 @@ bool ToggleGeneratedStep(MissionSummary* mission,
     return false;
   }
   const bool recovery_review = steps == &mission->rollback_steps && CanReviewMissionRecovery(*mission);
+  // Operational recovery is an acknowledgement after a terminal outcome, not
+  // another running checklist. Generic Missions retain their normal rollback.
+  if (mission->operational_workflow && steps == &mission->rollback_steps &&
+      !recovery_review) {
+    return false;
+  }
   if (mission->operational_workflow &&
       ((!recovery_review && mission->operational_workflow->run_state != "running") ||
        !HasValidOperationalWorkflowConditions(mission->steps, mission->workflow_inputs, mission->workflow_variables))) {

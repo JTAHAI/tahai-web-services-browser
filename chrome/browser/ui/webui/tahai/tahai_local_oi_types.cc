@@ -325,11 +325,22 @@ bool ValidateLocalOiMemory(const LocalOiMemoryRecord& record) {
 }
 
 bool ValidateLocalOiReport(const LocalOiReportRecord& record) {
+  // Report bodies contain generated Markdown. Permit its whitespace without
+  // relaxing the single-line metadata checks or accepting other controls.
+  const bool safe_content =
+      !record.content.empty() &&
+      record.content.size() <= kTahaiLocalOiMaximumReportLength &&
+      std::all_of(record.content.begin(), record.content.end(),
+                  [](unsigned char character) {
+                    return (character >= 0x20u && character != 0x7fu) ||
+                           character == '\n' || character == '\r' ||
+                           character == '\t';
+                  });
   return IsValidLocalOiId(record.id) &&
          IsKnownEnumName(LocalOiReportKindName(record.kind)) &&
          IsSafeLocalOiText(record.title,
                            kTahaiLocalOiMaximumRecordTitleLength) &&
-         IsSafeLocalOiText(record.content, kTahaiLocalOiMaximumReportLength) &&
+         safe_content &&
          IsSafeLocalOiText(record.provenance,
                            kTahaiLocalOiMaximumSummaryLength) &&
          IsValidLocalOiTimestamp(record.created_at) &&

@@ -581,6 +581,36 @@ TEST_F(MissionServiceTest, QueuedActivationPreservesAuthoredManualRecovery) {
   EXPECT_TRUE(mission.timeline_integrity_verified);
 }
 
+TEST_F(MissionServiceTest, OperationalRecoveryRejectsNonFailureStatesWithoutMutation) {
+  MissionService service(&profile_);
+  for (const char* state : {"ready", "running", "paused", "succeeded"}) {
+    SCOPED_TRACE(state);
+    TahaiOperationalWorkflow workflow;
+    workflow.id = "recovery-boundary";
+    workflow.name = "Recovery boundary";
+    workflow.steps = {{"review", "Review", TahaiOperationalWorkflowStepKind::kCheckpoint}};
+    workflow.compensation_steps = {{"confirm", "Confirm recovery outcome"}};
+    const auto created = service.CreateOperationalWorkflowMission(
+        workflow, "review-skin", std::string(64, 'a'), true);
+    ASSERT_TRUE(created);
+    if (std::string_view(state) != "ready") {
+      ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, "running"));
+      if (std::string_view(state) == "succeeded") {
+        ASSERT_TRUE(service.ToggleStep(created->id, 0));
+      }
+      if (std::string_view(state) != "running") {
+        ASSERT_TRUE(service.SetOperationalWorkflowRunState(created->id, state));
+      }
+    }
+    const auto before = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
+    const auto token = service.missions().back().mutation_token;
+    EXPECT_FALSE(service.ToggleRollbackStep(created->id, 0));
+    EXPECT_FALSE(service.missions().back().rollback_steps[0].complete);
+    EXPECT_EQ(token, service.missions().back().mutation_token);
+    EXPECT_EQ(before, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
+  }
+}
+
 TEST_F(MissionServiceTest, InvalidQueuedRecoveryCannotReplacePriorLaunch) {
   TahaiOperationalWorkflow workflow;
   workflow.id = "queued-recovery";
@@ -2398,6 +2428,7 @@ TEST_F(MissionServiceTest, ProtectedVariableContextTamperingAndPlaintextPreferen
   const auto saved = profile_.GetPrefs()->GetList(prefs::kTahaiMissions).Clone();
   const auto input_cipher = service.missions().front().workflow_inputs[0].protected_value;
   for (int change = 0; change < 8; ++change) {
+    SCOPED_TRACE(change);
     auto altered = saved.Clone(); auto& variable = altered[0].GetDict().FindList("workflow_variables")->front().GetDict();
     switch (change) {
       case 0: variable.Set("name", "Changed label"); break;
@@ -2410,12 +2441,18 @@ TEST_F(MissionServiceTest, ProtectedVariableContextTamperingAndPlaintextPreferen
       case 7: altered[0].GetDict().FindDict("operational_workflow")->Set("archive_sha256", std::string(64, 'b')); break;
     }
     profile_.GetPrefs()->SetList(prefs::kTahaiMissions, altered.Clone()); MissionService restored(&profile_);
-    ASSERT_EQ(1u, restored.missions().size()); ASSERT_TRUE(PrepareInputs(restored, provider.get()));
+    ASSERT_EQ(1u, restored.missions().size());
+    const bool rejected_workflow = change >= 3 && change < 6;
+    EXPECT_EQ(!rejected_workflow, PrepareInputs(restored, provider.get()));
     const auto& run = restored.missions().front();
     if (change < 3 || change >= 6) {
       ASSERT_TRUE(run.operational_workflow); EXPECT_FALSE(run.workflow_variables[0].protected_has_value);
       ASSERT_TRUE(restored.SetOperationalWorkflowRunState(run.id, "running")); EXPECT_FALSE(restored.AssignWorkflowVariable(run.id, 1));
-    } else EXPECT_FALSE(run.operational_workflow);
+    } else {
+      EXPECT_FALSE(run.operational_workflow);
+      EXPECT_FALSE(restored.ToggleStep(run.id, 0));
+      EXPECT_FALSE(restored.SetOperationalWorkflowRunState(run.id, "running"));
+    }
     if (change >= 3 && change < 6) EXPECT_EQ(altered, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
   }
   auto other = TestingProfile::Builder().SetPath(profile_.GetPath().AppendASCII("other-protected-variables")).Build();
@@ -5360,19 +5397,24 @@ TEST_F(MissionServiceTest, RestoredMissionIdentifiersRemainUnambiguous) {
   duplicate.GetDict().Set("title", "Conflicting duplicate");
   duplicate.GetDict().Set("archived", true);
   stored.Append(std::move(duplicate));
-  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, std::move(stored));
+  profile_.GetPrefs()->SetList(prefs::kTahaiMissions, stored.Clone());
   MissionService restored(&profile_);
   ASSERT_EQ(2u, restored.missions().size());
   EXPECT_EQ(first_id, restored.missions()[0].id);
   EXPECT_EQ(second_id, restored.missions()[1].id);
   EXPECT_EQ("First mission", restored.missions()[0].title);
   EXPECT_FALSE(restored.missions()[0].archived);
-  ASSERT_TRUE(restored.ToggleStep(first_id, 0u));
-  EXPECT_TRUE(restored.missions()[0].steps[0].complete);
+  // The readable projection is unambiguous, but mutating it must not erase
+  // the conflicting durable record. Preserve the whole original collection.
+  EXPECT_FALSE(restored.ToggleStep(first_id, 0u));
+  EXPECT_FALSE(restored.ToggleStep(second_id, 0u));
+  EXPECT_FALSE(restored.missions()[0].steps[0].complete);
   EXPECT_FALSE(restored.missions()[1].steps[0].complete);
-  ASSERT_EQ(2u, profile_.GetPrefs()->GetList(prefs::kTahaiMissions).size());
+  EXPECT_EQ(stored, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
   MissionService reloaded(&profile_);
   EXPECT_EQ(2u, reloaded.missions().size());
+  EXPECT_FALSE(reloaded.ToggleStep(first_id, 0u));
+  EXPECT_EQ(stored, profile_.GetPrefs()->GetList(prefs::kTahaiMissions));
 }
 
 TEST_F(MissionServiceTest, PersistsGeneratedRunbookAndEvidencePackState) {

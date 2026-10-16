@@ -4,6 +4,7 @@
 #include "chrome/browser/ui/webui/tahai/tahai_local_oi_store.h"
 
 #include "base/values.h"
+#include "chrome/browser/ui/webui/tahai/tahai_local_oi_model.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -48,6 +49,56 @@ TEST_F(TahaiLocalOiStoreTest, PersistsValidatedEntityAcrossStoreInstances) {
   ASSERT_EQ(1u, reloaded.data().entities.size());
   EXPECT_EQ(kEntityId, reloaded.data().entities.front().id);
   EXPECT_EQ(LocalOiStoreStatus::kReady, reloaded.status());
+}
+
+TEST_F(TahaiLocalOiStoreTest, GeneratedMarkdownAndJsonReportsPersistExactly) {
+  for (auto format : {LocalOiSafeReportFormat::kMarkdown,
+                      LocalOiSafeReportFormat::kJson}) {
+    SCOPED_TRACE(static_cast<int>(format));
+    const std::string content = BuildLocalOiSafeReport(
+        LocalOiSnapshot(), LocalOiSafeReportKind::kOverview, format, "1");
+    ASSERT_FALSE(content.empty());
+    LocalOiReportRecord report;
+    report.id = kEntityId;
+    report.title = "Generated report";
+    report.content = content;
+    report.provenance = "Aggregate local fixture.";
+    report.created_at = "1";
+    {
+      TahaiLocalOiStore store(&prefs_, /*durable=*/true);
+      ASSERT_TRUE(store.AddReport(report));
+    }
+    TahaiLocalOiStore restored(&prefs_, /*durable=*/true);
+    ASSERT_EQ(1u, restored.data().reports.size());
+    EXPECT_EQ(content, restored.data().reports.front().content);
+  }
+}
+
+TEST_F(TahaiLocalOiStoreTest, ReportWhitespaceDoesNotPermitUnsafeControls) {
+  LocalOiReportRecord report;
+  report.id = kEntityId;
+  report.title = "Report";
+  report.content = "Heading\r\n\tBody\n";
+  report.provenance = "Local fixture.";
+  report.created_at = "1";
+  ASSERT_TRUE(ValidateLocalOiReport(report));
+  for (int character = 0; character <= 0x7f; ++character) {
+    if (character >= 0x20 && character != 0x7f) continue;
+    SCOPED_TRACE(character);
+    report.content = "before" + std::string(1, static_cast<char>(character)) + "after";
+    EXPECT_EQ(character == '\t' || character == '\r' || character == '\n',
+              ValidateLocalOiReport(report));
+  }
+  report.content.clear();
+  EXPECT_FALSE(ValidateLocalOiReport(report));
+  report.content.assign(kTahaiLocalOiMaximumReportLength + 1, 'a');
+  EXPECT_FALSE(ValidateLocalOiReport(report));
+  report.content = "Safe\nreport";
+  report.title = "Unsafe\ntitle";
+  EXPECT_FALSE(ValidateLocalOiReport(report));
+  report.title = "Report";
+  report.provenance = "Unsafe\nprovenance";
+  EXPECT_FALSE(ValidateLocalOiReport(report));
 }
 
 TEST_F(TahaiLocalOiStoreTest, RejectsSelfReferentialRelationship) {

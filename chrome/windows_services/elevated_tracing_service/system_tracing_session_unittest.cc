@@ -69,9 +69,15 @@ TEST_F(SystemTracingSessionTest, TahaiConfiguredInterfaceMatchesTypeLibrary) {
   ASSERT_TRUE(mock_context.Succeeded());
   EXPECT_TRUE(::IsEqualIID(install_static::GetTracingServiceIid(),
                            __uuidof(ISystemTraceSessionChromium)));
-  Microsoft::WRL::ComPtr<ISystemTraceSession> trace_session;
+  // The process-local factory fixture does not install the type-library proxy.
+  // Query the configured IID after IUnknown activation; installed cross-
+  // process activation is verified separately in the isolated service gate.
+  Microsoft::WRL::ComPtr<IUnknown> unknown;
   ASSERT_HRESULT_SUCCEEDED(::CoCreateInstance(
       install_static::GetTracingServiceClsid(), nullptr, CLSCTX_LOCAL_SERVER,
+      IID_PPV_ARGS(&unknown)));
+  Microsoft::WRL::ComPtr<ISystemTraceSession> trace_session;
+  ASSERT_HRESULT_SUCCEEDED(unknown->QueryInterface(
       install_static::GetTracingServiceIid(),
       IID_PPV_ARGS_Helper(&trace_session)));
   ASSERT_EQ(1u, install_static::GetOldTracingServiceIids().size());

@@ -64,9 +64,16 @@ TEST_F(ServiceMainTest, TahaiConfiguredInterfaceMatchesTypeLibrary) {
   ASSERT_TRUE(mock_context.Succeeded());
   EXPECT_TRUE(::IsEqualIID(install_static::GetElevatorIid(),
                            __uuidof(IElevator2Chromium)));
-  Microsoft::WRL::ComPtr<IElevator2> elevator;
+  // This fixture registers a process-local factory, not the installed proxy
+  // and type library. Activate IUnknown as the other fixture tests do, then
+  // query the exact configured IID on that object. Cross-process activation
+  // remains an installed-service acceptance check.
+  Microsoft::WRL::ComPtr<IUnknown> unknown;
   ASSERT_HRESULT_SUCCEEDED(::CoCreateInstance(
       install_static::GetElevatorClsid(), nullptr, CLSCTX_LOCAL_SERVER,
+      IID_PPV_ARGS(&unknown)));
+  Microsoft::WRL::ComPtr<IElevator2> elevator;
+  ASSERT_HRESULT_SUCCEEDED(unknown->QueryInterface(
       install_static::GetElevatorIid(), IID_PPV_ARGS_Helper(&elevator)));
 }
 #endif
