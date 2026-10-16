@@ -17,10 +17,21 @@ inline constexpr char kSkinStudioConditionTreeJs[] = R"TAHAI(
   if (!source || !stepChoice || !anchor) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Visual condition tree</h3>
-    <p id="skin-studio-condition-tree-help" class="muted">Edit individual checks or groups without JSON. Choose a comparison in the Input or variable controls above, then replace a check, add it to a group, or combine it with a selected node. AND requires every check; OR requires at least one; NOT reverses a check. All referenced values must still be present. Removing one of two group members keeps its sibling. Edits affect the draft only, never a running Mission.</p>
-    <p id="skin-studio-condition-tree-status" role="status" aria-live="polite"></p>
-    <ol id="skin-studio-condition-tree" class="list" aria-label="Condition checks and groups" aria-describedby="skin-studio-condition-tree-help"></ol>`;
+  // These controls are fixed source declarations. Build DOM nodes directly:
+  // string HTML sinks are forbidden by the WebUI Trusted Types policy.
+  const studioControl = ([tag, attributes, children]) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children.map(child => typeof child === 'string' ?
+        document.createTextNode(child) : studioControl(child)));
+    return node;
+  };
+  section.append(...[
+    ["h3", {}, ["Visual condition tree"]],
+    ["p", {"id": "skin-studio-condition-tree-help", "class": "muted"}, ["Edit individual checks or groups without JSON. Choose a comparison in the Input or variable controls above, then replace a check, add it to a group, or combine it with a selected node. AND requires every check; OR requires at least one; NOT reverses a check. All referenced values must still be present. Removing one of two group members keeps its sibling. Edits affect the draft only, never a running Mission."]],
+    ["p", {"id": "skin-studio-condition-tree-status", "role": "status", "aria-live": "polite"}, []],
+    ["ol", {"id": "skin-studio-condition-tree", "class": "list", "aria-label": "Condition checks and groups", "aria-describedby": "skin-studio-condition-tree-help"}, []]
+  ].map(studioControl));
   anchor.insertAdjacentElement('afterend', section);
   const list = get('condition-tree'), status = get('condition-tree-status');
   const current = () => window.tahaiStudioWorkflows?.current();

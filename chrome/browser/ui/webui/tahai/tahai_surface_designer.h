@@ -130,8 +130,7 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
       field('Active pane', active));
   append(section, settingsGrid,
       element('p', {id: 'surface-canvas-status', role: 'status', 'aria-live': 'polite'}),
-      element('div', {id: 'surface-canvas', 'aria-label': 'Native pane layout preview',
-          style: 'position:relative;min-height:120px;border:2px solid currentColor;overflow:hidden'}),
+      element('div', {id: 'surface-canvas', 'aria-label': 'Native pane layout preview'}),
       element('h4', {}, 'Outline and properties'),
       element('ol', {id: 'surface-outline', class: 'list'}),
       element('h4', {}, 'Keyboard pane order'),
@@ -198,6 +197,8 @@ inline constexpr char kSurfaceDesignerJs[] = R"TAHAI(
   };
   const renderCanvas = () => {
     const current = state(), canvas = get('canvas'); canvas.replaceChildren();
+    Object.assign(canvas.style, {position: 'relative', minHeight: '120px',
+        border: '2px solid currentColor', overflow: 'hidden'});
     const width = Number(get('width').value), height = Number(get('height').value);
     if (!validDesign(current?.surface) || !integer(width, 200, 3840) || !integer(height, 150, 2160)) {
       get('canvas-status').textContent = 'Choose a template or enter a valid layout tree and preview size.';

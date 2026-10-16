@@ -30,10 +30,21 @@ inline constexpr char kSkinStudioWorkflowOutlineJs[] = R"TAHAI(
   if (!source || !inspector || !anchor) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Workflow outline</h3>
-    <p id="skin-studio-flow-help" class="muted">Follow the authored order. Conditions skip only their own step; unresolved values block progress. Repeats have fixed iteration counts. Every action remains explicit. This diagram does not run or edit the workflow. Use Up/Down, Home/End to inspect steps and Enter to focus the step inspector.</p>
-    <p id="skin-studio-flow-summary" role="status" aria-live="polite"></p>
-    <ol id="skin-studio-flow" class="studio-flow" aria-label="Authored workflow steps" aria-describedby="skin-studio-flow-help"></ol>`;
+  // These controls are fixed source declarations. Build DOM nodes directly:
+  // string HTML sinks are forbidden by the WebUI Trusted Types policy.
+  const studioControl = ([tag, attributes, children]) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children.map(child => typeof child === 'string' ?
+        document.createTextNode(child) : studioControl(child)));
+    return node;
+  };
+  section.append(...[
+    ["h3", {}, ["Workflow outline"]],
+    ["p", {"id": "skin-studio-flow-help", "class": "muted"}, ["Follow the authored order. Conditions skip only their own step; unresolved values block progress. Repeats have fixed iteration counts. Every action remains explicit. This diagram does not run or edit the workflow. Use Up/Down, Home/End to inspect steps and Enter to focus the step inspector."]],
+    ["p", {"id": "skin-studio-flow-summary", "role": "status", "aria-live": "polite"}, []],
+    ["ol", {"id": "skin-studio-flow", "class": "studio-flow", "aria-label": "Authored workflow steps", "aria-describedby": "skin-studio-flow-help"}, []]
+  ].map(studioControl));
   anchor.insertAdjacentElement('afterend', section);
   const list = section.querySelector('#skin-studio-flow');
   const summary = section.querySelector('#skin-studio-flow-summary');

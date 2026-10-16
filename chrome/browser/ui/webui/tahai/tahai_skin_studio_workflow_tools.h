@@ -18,138 +18,277 @@ inline constexpr char kSkinStudioWorkflowToolsJs[] = R"TAHAI(
   if (!source || !status || !anchor) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Conditions and step order</h3>
-    <p class="muted">Choose when a step is available using an ordinary yes/no, selection or numeric input or variable. Input choices must be answered before starting. An unassigned variable blocks its branch and later work; add an earlier assignment. Variable decisions are recorded when you advance through them and do not change with later assignments or restart. This never starts an action automatically.</p>
-    <div class="grid">
-      <label>Step <select id="skin-studio-condition-step" class="button"></select></label>
-      <label>Input or variable <select id="skin-studio-condition-input" class="button"></select></label>
-      <label>Equals <select id="skin-studio-condition-value" class="button"></select></label>
-      <label>Numeric comparison <select id="skin-studio-condition-operation" class="button">
-        <option value="equal">Equal to</option><option value="not-equal">Not equal to</option>
-        <option value="less-than">Less than</option><option value="at-most">At most</option>
-        <option value="greater-than">Greater than</option><option value="at-least">At least</option>
-      </select></label>
-      <label>Numeric threshold <input id="skin-studio-condition-number" type="number" min="-1000000000000" max="1000000000000" step="any"></label>
-      <label>Use this check <select id="skin-studio-condition-combine" class="button"><option value="replace">Replace condition</option><option value="all">AND with existing condition</option><option value="any">OR with existing condition</option></select></label>
-    </div>
-    <div class="actions">
-      <button type="button" class="button" id="skin-studio-condition-save">Set condition</button>
-      <button type="button" class="button" id="skin-studio-condition-clear">Remove condition</button>
-      <button type="button" class="button" id="skin-studio-condition-negate">NOT current condition</button>
-      <button type="button" class="button" id="skin-studio-step-up">Move step up</button>
-      <button type="button" class="button" id="skin-studio-step-down">Move step down</button>
-    </div>
-    <label>Compound condition JSON <textarea id="skin-studio-condition-expression" rows="6" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-condition-help"></textarea></label>
-    <p id="skin-studio-condition-help" class="muted">Combine ordinary input/variable comparisons with all or any arrays of 2–8 checks, or not with one check. At most 31 nodes and 5 levels. Every source must be answered/assigned; missing values cannot be bypassed with OR/NOT. Recorded decisions never change after progress. The simple controls replace this tree only when Set condition is explicitly chosen.</p>
-    <button type="button" class="button" id="skin-studio-condition-expression-save">Set compound condition</button>
-    <h3>Bounded repeat</h3>
-    <p class="muted" id="skin-studio-repeat-help">Repeat an inclusive sequence 2–8 times, with at most 32 expanded steps. Ranges cannot overlap or nest. Each iteration has its own progress, branch decisions, wait and action record. Local variables carry forward. Actions remain explicit; a repeat never starts an action automatically. Repeated labels must fit 122 characters and expanded IDs 64 characters.</p>
-    <div class="grid">
-      <label>Repeat range <select id="skin-studio-repeat-choice" class="button"></select></label>
-      <label>First step <select id="skin-studio-repeat-from" class="button"></select></label>
-      <label>Last step (included) <select id="skin-studio-repeat-through" class="button"></select></label>
-      <label>Total iterations <input id="skin-studio-repeat-count" type="number" min="2" max="8" step="1" value="2" aria-describedby="skin-studio-repeat-help"></label>
-    </div>
-    <div class="actions"><button type="button" class="button" id="skin-studio-repeat-save">Save repeat range</button>
-      <button type="button" class="button" id="skin-studio-repeat-remove">Remove repeat range</button></div>
-    <p class="muted" id="skin-studio-repeat-summary"></p>
-    <h3>Timed wait</h3>
-    <p class="muted">Configure the selected step as a local delay, 1–86400 whole seconds. Start and completion are explicit. Pause stops its clock; restart retains only saved progress and never automatically resumes. No website is observed or action dispatched.</p>
-    <div class="grid"><label>Wait seconds <input id="skin-studio-wait-seconds" type="number" min="1" max="86400" step="1" value="1"></label>
-      <label>Completion deadline in active seconds (optional) <input id="skin-studio-wait-timeout" type="number" min="2" max="86400" step="1"></label>
-      <button type="button" class="button" id="skin-studio-wait-save">Set timed wait</button>
-      <button type="button" class="button" id="skin-studio-wait-clear">Change wait to checkpoint</button></div>
-    <p class="muted">A deadline must exceed the wait and be at most 86400 seconds. It starts with the wait and pauses with it. Missing it fails this step and run without another action. Blank means no deadline.</p>
-    <h3>Typed local variables</h3>
-    <p class="muted">Create an empty variable using an input or variable's type, options, privacy and limits. Protected values can only be copied into protected variables; they are encrypted locally and remain masked. They cannot enter conditions or calculations. Values change only on explicit assignment; an empty source clears the destination. Target limits are securely checked before storing.</p>
-    <div class="grid">
-      <label>Variable name <input id="skin-studio-variable-name" maxlength="128" autocomplete="off"></label>
-      <label>Copy type, privacy and limits from <select id="skin-studio-variable-template" class="button"></select></label>
-      <label><input id="skin-studio-variable-protected" type="checkbox">Protect this new variable (always on for a protected source)</label>
-      <button type="button" class="button" id="skin-studio-variable-add">Add empty variable</button>
-    </div>
-    <ul id="skin-studio-variables" class="list"></ul>
-    <p class="muted">Use the selected step above. Instructions and checkpoints can become assignments. Native actions must remain separate steps.</p>
-    <div class="grid">
-      <label>Destination variable <select id="skin-studio-assignment-target" class="button"></select></label>
-      <label>Typed source <select id="skin-studio-assignment-source" class="button"></select></label>
-      <button type="button" class="button" id="skin-studio-assignment-save">Set assignment step</button>
-      <button type="button" class="button" id="skin-studio-assignment-clear">Change assignment to checkpoint</button>
-    </div>
-    <h3>Local calculation</h3>
-    <p class="muted">Choose a numeric destination above, an operation, and ordinary numeric sources or constants. Results change only when this step is explicitly run.</p>
-    <div class="grid">
-      <label>Operation <select id="skin-studio-calculation-operation" class="button">
-        <option value="">Choose an operation</option><option value="value">Use one value</option>
-        <option value="add">Add</option><option value="subtract">Subtract</option>
-        <option value="multiply">Multiply</option><option value="divide">Divide</option>
-        <option value="min">Smaller value</option><option value="max">Larger value</option>
-        <option value="abs">Absolute value</option><option value="negate">Reverse sign</option>
-      </select></label>
-      <label>First source <select id="skin-studio-calculation-left" class="button"></select></label>
-      <label>First constant <input id="skin-studio-calculation-left-number" type="number" step="any" min="-1000000000000" max="1000000000000" aria-describedby="skin-studio-calculation-basic-help"></label>
-      <label>Second source <select id="skin-studio-calculation-right" class="button"></select></label>
-      <label>Second constant <input id="skin-studio-calculation-right-number" type="number" step="any" min="-1000000000000" max="1000000000000" aria-describedby="skin-studio-calculation-basic-help"></label>
-    </div>
-    <p id="skin-studio-calculation-basic-help" class="muted">Constants must be finite numbers within ±1,000,000,000,000. One-value and sign operations do not use the second source. Protected values are never offered.</p>
-    <p id="skin-studio-calculation-basic-status" role="status" aria-live="polite"></p>
-    <button type="button" class="button" id="skin-studio-calculation-basic-save">Set basic calculation</button>
-    <label>Advanced bounded expression (JSON tree) <textarea id="skin-studio-calculation-expression" rows="5" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-calculation-help"></textarea></label>
-    <p id="skin-studio-calculation-help" class="muted">Choose a numeric destination above. Use number constants or ordinary numeric input/variable IDs with add, subtract, multiply, divide, min, max, abs or negate. Up to 31 nodes and 5 levels. No scripts or protected inputs. Blank references, zero divisors, non-finite/out-of-range results or destination limits prevent assignment without changing the previous value.</p>
-    <button type="button" class="button" id="skin-studio-calculation-save">Set calculation step</button>
-    <h3>Local text expression</h3>
-    <p id="skin-studio-text-help" class="muted">Choose an ordinary text destination. Join two values, trim ordinary spaces, change ASCII letter case, or replace literal matches (not regular expressions). References must have values; an explicit empty constant can clear a result. Each intermediate result is limited to 256 UTF-8 bytes. No protected values, code, web access or implicit type conversion. Constants become part of the shared design: do not enter secrets.</p>
-    <label>Text operation <select id="skin-studio-text-operation" class="button">
-      <option value="">Choose an operation</option><option value="value">Use one value</option><option value="concat">Join</option>
-      <option value="trim-space">Trim spaces</option><option value="lower-ascii">Lowercase ASCII</option>
-      <option value="upper-ascii">Uppercase ASCII</option><option value="replace">Replace literal matches</option>
-    </select></label>
-    <div class="grid">
-      <label>First text source <select id="skin-studio-text-first" class="button"></select></label>
-      <label>First constant <input id="skin-studio-text-first-constant" maxlength="256" autocomplete="off" aria-describedby="skin-studio-text-help"></label>
-      <label>Second source (text or search) <select id="skin-studio-text-second" class="button"></select></label>
-      <label>Second constant <input id="skin-studio-text-second-constant" maxlength="256" autocomplete="off" aria-describedby="skin-studio-text-help"></label>
-      <label>Replacement source <select id="skin-studio-text-third" class="button"></select></label>
-      <label>Replacement constant <input id="skin-studio-text-third-constant" maxlength="256" autocomplete="off" aria-describedby="skin-studio-text-help"></label>
-    </div>
-    <p id="skin-studio-text-basic-status" role="status" aria-live="polite"></p>
-    <button type="button" class="button" id="skin-studio-text-basic-save">Set basic text expression</button>
-    <label>Advanced text expression (JSON tree) <textarea id="skin-studio-text-expression" rows="5" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-text-help"></textarea></label>
-    <button type="button" class="button" id="skin-studio-text-save">Set text expression step</button>
-    <h3>Yes/no calculation</h3>
-    <p id="skin-studio-boolean-help" class="muted">Choose an ordinary boolean destination above. Reuse the bounded condition language: all, any, not, ordinary yes/no or selection comparisons, and numeric comparisons. Every referenced value must be present, even in a branch that would otherwise short-circuit. Missing values leave the previous variable and progress unchanged. Protected values and external effects are excluded.</p>
-    <label>Boolean expression (JSON tree) <textarea id="skin-studio-boolean-expression" rows="5" maxlength="8192" spellcheck="false" aria-describedby="skin-studio-boolean-help"></textarea></label>
-    <button type="button" class="button" id="skin-studio-boolean-save">Set yes/no calculation step</button>
-    <button type="button" class="button" id="skin-studio-boolean-from-condition">Turn this step's condition into a yes/no calculation</button>
-    <p class="muted">The second button moves the condition made with the condition controls into the calculation, removing that step's availability condition so both true and false can be assigned. It does not run the workflow.</p>
-    <h3>Named local outputs</h3>
-    <p class="muted">Bind a named result to an input or variable in this run. Results appear only after success, remain local, and inherit the source's type and privacy. Protected values stay masked. No website or service receives a result.</p>
-    <div class="grid">
-      <label>Result name <input id="skin-studio-output-name" maxlength="128" autocomplete="off"></label>
-      <label>Source input <select id="skin-studio-output-input" class="button"></select></label>
-      <button type="button" class="button" id="skin-studio-output-add">Add named output</button>
-    </div>
-    <ul id="skin-studio-outputs" class="list"></ul>
-    <h3>Manual recovery checklist</h3>
-    <p class="muted">Add up to eight explicit human reviews for a failed or cancelled Mission. They are shown only after every pending action and wait settles. Checking a review never sends, deletes, publishes, navigates, repeats an action, rolls a website back, or changes a failed run into success.</p>
-    <div class="grid">
-      <label>Recovery review <input id="skin-studio-compensation-name" maxlength="128" autocomplete="off"></label>
-      <button type="button" class="button" id="skin-studio-compensation-add">Add recovery review</button>
-    </div>
-    <ul id="skin-studio-compensation-steps" class="list" aria-label="Manual recovery reviews"></ul>
-    <h3>Try the workflow</h3>
-    <p class="muted">Try input values and step completion here. Actions are simulated. Values are cleared when the draft changes or this page closes.</p>
-    <div id="skin-studio-simulation-inputs" class="grid"></div>
-    <button type="button" class="button" id="skin-studio-simulate">Run simulation</button>
-    <button type="button" class="button" id="skin-studio-simulation-reset">Reset simulation</button>
-    <p id="skin-studio-simulation-status" role="status" aria-live="polite"></p>
-    <ol id="skin-studio-simulation-steps" class="list"></ol>
-    <ul id="skin-studio-simulation-outputs" class="list" aria-label="Simulated local outputs"></ul>
-    <h3>Simulation trace</h3>
-    <p class="muted">Local rehearsal only, not evidence of a real browser action. Records step IDs and fixed event types, never input values, variable values, page content or credentials. The latest 128 events stay in memory only. Changing source, workflow or input values, resetting, or closing Studio clears the trace.</p>
-    <button type="button" class="button" id="skin-studio-simulation-trace-clear">Clear trace only</button>
-    <p id="skin-studio-simulation-trace-status" role="status" aria-live="polite"></p>
-    <ol id="skin-studio-simulation-trace" class="list" aria-label="Simulated step event sequence"></ol>`;
+  // These controls are fixed source declarations. Build DOM nodes directly:
+  // string HTML sinks are forbidden by the WebUI Trusted Types policy.
+  const studioControl = ([tag, attributes, children]) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children.map(child => typeof child === 'string' ?
+        document.createTextNode(child) : studioControl(child)));
+    return node;
+  };
+  section.append(...[
+    ["h3", {}, ["Conditions and step order"]],
+    ["p", {"class": "muted"}, ["Choose when a step is available using an ordinary yes/no, selection or numeric input or variable. Input choices must be answered before starting. An unassigned variable blocks its branch and later work; add an earlier assignment. Variable decisions are recorded when you advance through them and do not change with later assignments or restart. This never starts an action automatically."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Step ",
+        ["select", {"id": "skin-studio-condition-step", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Input or variable ",
+        ["select", {"id": "skin-studio-condition-input", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Equals ",
+        ["select", {"id": "skin-studio-condition-value", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Numeric comparison ",
+        ["select", {"id": "skin-studio-condition-operation", "class": "button"}, [
+          ["option", {"value": "equal"}, ["Equal to"]],
+          ["option", {"value": "not-equal"}, ["Not equal to"]],
+          ["option", {"value": "less-than"}, ["Less than"]],
+          ["option", {"value": "at-most"}, ["At most"]],
+          ["option", {"value": "greater-than"}, ["Greater than"]],
+          ["option", {"value": "at-least"}, ["At least"]]
+        ]]
+      ]],
+      ["label", {}, [
+        "Numeric threshold ",
+        ["input", {"id": "skin-studio-condition-number", "type": "number", "min": "-1000000000000", "max": "1000000000000", "step": "any"}, []]
+      ]],
+      ["label", {}, [
+        "Use this check ",
+        ["select", {"id": "skin-studio-condition-combine", "class": "button"}, [
+          ["option", {"value": "replace"}, ["Replace condition"]],
+          ["option", {"value": "all"}, ["AND with existing condition"]],
+          ["option", {"value": "any"}, ["OR with existing condition"]]
+        ]]
+      ]]
+    ]],
+    ["div", {"class": "actions"}, [
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-condition-save"}, ["Set condition"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-condition-clear"}, ["Remove condition"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-condition-negate"}, ["NOT current condition"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-step-up"}, ["Move step up"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-step-down"}, ["Move step down"]]
+    ]],
+    ["label", {}, [
+      "Compound condition JSON ",
+      ["textarea", {"id": "skin-studio-condition-expression", "rows": "6", "maxlength": "8192", "spellcheck": "false", "aria-describedby": "skin-studio-condition-help"}, []]
+    ]],
+    ["p", {"id": "skin-studio-condition-help", "class": "muted"}, ["Combine ordinary input/variable comparisons with all or any arrays of 2–8 checks, or not with one check. At most 31 nodes and 5 levels. Every source must be answered/assigned; missing values cannot be bypassed with OR/NOT. Recorded decisions never change after progress. The simple controls replace this tree only when Set condition is explicitly chosen."]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-condition-expression-save"}, ["Set compound condition"]],
+    ["h3", {}, ["Bounded repeat"]],
+    ["p", {"class": "muted", "id": "skin-studio-repeat-help"}, ["Repeat an inclusive sequence 2–8 times, with at most 32 expanded steps. Ranges cannot overlap or nest. Each iteration has its own progress, branch decisions, wait and action record. Local variables carry forward. Actions remain explicit; a repeat never starts an action automatically. Repeated labels must fit 122 characters and expanded IDs 64 characters."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Repeat range ",
+        ["select", {"id": "skin-studio-repeat-choice", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "First step ",
+        ["select", {"id": "skin-studio-repeat-from", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Last step (included) ",
+        ["select", {"id": "skin-studio-repeat-through", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Total iterations ",
+        ["input", {"id": "skin-studio-repeat-count", "type": "number", "min": "2", "max": "8", "step": "1", "value": "2", "aria-describedby": "skin-studio-repeat-help"}, []]
+      ]]
+    ]],
+    ["div", {"class": "actions"}, [
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-repeat-save"}, ["Save repeat range"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-repeat-remove"}, ["Remove repeat range"]]
+    ]],
+    ["p", {"class": "muted", "id": "skin-studio-repeat-summary"}, []],
+    ["h3", {}, ["Timed wait"]],
+    ["p", {"class": "muted"}, ["Configure the selected step as a local delay, 1–86400 whole seconds. Start and completion are explicit. Pause stops its clock; restart retains only saved progress and never automatically resumes. No website is observed or action dispatched."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Wait seconds ",
+        ["input", {"id": "skin-studio-wait-seconds", "type": "number", "min": "1", "max": "86400", "step": "1", "value": "1"}, []]
+      ]],
+      ["label", {}, [
+        "Completion deadline in active seconds (optional) ",
+        ["input", {"id": "skin-studio-wait-timeout", "type": "number", "min": "2", "max": "86400", "step": "1"}, []]
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-wait-save"}, ["Set timed wait"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-wait-clear"}, ["Change wait to checkpoint"]]
+    ]],
+    ["p", {"class": "muted"}, ["A deadline must exceed the wait and be at most 86400 seconds. It starts with the wait and pauses with it. Missing it fails this step and run without another action. Blank means no deadline."]],
+    ["h3", {}, ["Typed local variables"]],
+    ["p", {"class": "muted"}, ["Create an empty variable using an input or variable's type, options, privacy and limits. Protected values can only be copied into protected variables; they are encrypted locally and remain masked. They cannot enter conditions or calculations. Values change only on explicit assignment; an empty source clears the destination. Target limits are securely checked before storing."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Variable name ",
+        ["input", {"id": "skin-studio-variable-name", "maxlength": "128", "autocomplete": "off"}, []]
+      ]],
+      ["label", {}, [
+        "Copy type, privacy and limits from ",
+        ["select", {"id": "skin-studio-variable-template", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        ["input", {"id": "skin-studio-variable-protected", "type": "checkbox"}, []],
+        "Protect this new variable (always on for a protected source)"
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-variable-add"}, ["Add empty variable"]]
+    ]],
+    ["ul", {"id": "skin-studio-variables", "class": "list"}, []],
+    ["p", {"class": "muted"}, ["Use the selected step above. Instructions and checkpoints can become assignments. Native actions must remain separate steps."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Destination variable ",
+        ["select", {"id": "skin-studio-assignment-target", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Typed source ",
+        ["select", {"id": "skin-studio-assignment-source", "class": "button"}, []]
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-assignment-save"}, ["Set assignment step"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-assignment-clear"}, ["Change assignment to checkpoint"]]
+    ]],
+    ["h3", {}, ["Local calculation"]],
+    ["p", {"class": "muted"}, ["Choose a numeric destination above, an operation, and ordinary numeric sources or constants. Results change only when this step is explicitly run."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Operation ",
+        ["select", {"id": "skin-studio-calculation-operation", "class": "button"}, [
+          ["option", {"value": ""}, ["Choose an operation"]],
+          ["option", {"value": "value"}, ["Use one value"]],
+          ["option", {"value": "add"}, ["Add"]],
+          ["option", {"value": "subtract"}, ["Subtract"]],
+          ["option", {"value": "multiply"}, ["Multiply"]],
+          ["option", {"value": "divide"}, ["Divide"]],
+          ["option", {"value": "min"}, ["Smaller value"]],
+          ["option", {"value": "max"}, ["Larger value"]],
+          ["option", {"value": "abs"}, ["Absolute value"]],
+          ["option", {"value": "negate"}, ["Reverse sign"]]
+        ]]
+      ]],
+      ["label", {}, [
+        "First source ",
+        ["select", {"id": "skin-studio-calculation-left", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "First constant ",
+        ["input", {"id": "skin-studio-calculation-left-number", "type": "number", "step": "any", "min": "-1000000000000", "max": "1000000000000", "aria-describedby": "skin-studio-calculation-basic-help"}, []]
+      ]],
+      ["label", {}, [
+        "Second source ",
+        ["select", {"id": "skin-studio-calculation-right", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Second constant ",
+        ["input", {"id": "skin-studio-calculation-right-number", "type": "number", "step": "any", "min": "-1000000000000", "max": "1000000000000", "aria-describedby": "skin-studio-calculation-basic-help"}, []]
+      ]]
+    ]],
+    ["p", {"id": "skin-studio-calculation-basic-help", "class": "muted"}, ["Constants must be finite numbers within ±1,000,000,000,000. One-value and sign operations do not use the second source. Protected values are never offered."]],
+    ["p", {"id": "skin-studio-calculation-basic-status", "role": "status", "aria-live": "polite"}, []],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-calculation-basic-save"}, ["Set basic calculation"]],
+    ["label", {}, [
+      "Advanced bounded expression (JSON tree) ",
+      ["textarea", {"id": "skin-studio-calculation-expression", "rows": "5", "maxlength": "8192", "spellcheck": "false", "aria-describedby": "skin-studio-calculation-help"}, []]
+    ]],
+    ["p", {"id": "skin-studio-calculation-help", "class": "muted"}, ["Choose a numeric destination above. Use number constants or ordinary numeric input/variable IDs with add, subtract, multiply, divide, min, max, abs or negate. Up to 31 nodes and 5 levels. No scripts or protected inputs. Blank references, zero divisors, non-finite/out-of-range results or destination limits prevent assignment without changing the previous value."]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-calculation-save"}, ["Set calculation step"]],
+    ["h3", {}, ["Local text expression"]],
+    ["p", {"id": "skin-studio-text-help", "class": "muted"}, ["Choose an ordinary text destination. Join two values, trim ordinary spaces, change ASCII letter case, or replace literal matches (not regular expressions). References must have values; an explicit empty constant can clear a result. Each intermediate result is limited to 256 UTF-8 bytes. No protected values, code, web access or implicit type conversion. Constants become part of the shared design: do not enter secrets."]],
+    ["label", {}, [
+      "Text operation ",
+      ["select", {"id": "skin-studio-text-operation", "class": "button"}, [
+        ["option", {"value": ""}, ["Choose an operation"]],
+        ["option", {"value": "value"}, ["Use one value"]],
+        ["option", {"value": "concat"}, ["Join"]],
+        ["option", {"value": "trim-space"}, ["Trim spaces"]],
+        ["option", {"value": "lower-ascii"}, ["Lowercase ASCII"]],
+        ["option", {"value": "upper-ascii"}, ["Uppercase ASCII"]],
+        ["option", {"value": "replace"}, ["Replace literal matches"]]
+      ]]
+    ]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "First text source ",
+        ["select", {"id": "skin-studio-text-first", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "First constant ",
+        ["input", {"id": "skin-studio-text-first-constant", "maxlength": "256", "autocomplete": "off", "aria-describedby": "skin-studio-text-help"}, []]
+      ]],
+      ["label", {}, [
+        "Second source (text or search) ",
+        ["select", {"id": "skin-studio-text-second", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Second constant ",
+        ["input", {"id": "skin-studio-text-second-constant", "maxlength": "256", "autocomplete": "off", "aria-describedby": "skin-studio-text-help"}, []]
+      ]],
+      ["label", {}, [
+        "Replacement source ",
+        ["select", {"id": "skin-studio-text-third", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "Replacement constant ",
+        ["input", {"id": "skin-studio-text-third-constant", "maxlength": "256", "autocomplete": "off", "aria-describedby": "skin-studio-text-help"}, []]
+      ]]
+    ]],
+    ["p", {"id": "skin-studio-text-basic-status", "role": "status", "aria-live": "polite"}, []],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-text-basic-save"}, ["Set basic text expression"]],
+    ["label", {}, [
+      "Advanced text expression (JSON tree) ",
+      ["textarea", {"id": "skin-studio-text-expression", "rows": "5", "maxlength": "8192", "spellcheck": "false", "aria-describedby": "skin-studio-text-help"}, []]
+    ]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-text-save"}, ["Set text expression step"]],
+    ["h3", {}, ["Yes/no calculation"]],
+    ["p", {"id": "skin-studio-boolean-help", "class": "muted"}, ["Choose an ordinary boolean destination above. Reuse the bounded condition language: all, any, not, ordinary yes/no or selection comparisons, and numeric comparisons. Every referenced value must be present, even in a branch that would otherwise short-circuit. Missing values leave the previous variable and progress unchanged. Protected values and external effects are excluded."]],
+    ["label", {}, [
+      "Boolean expression (JSON tree) ",
+      ["textarea", {"id": "skin-studio-boolean-expression", "rows": "5", "maxlength": "8192", "spellcheck": "false", "aria-describedby": "skin-studio-boolean-help"}, []]
+    ]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-boolean-save"}, ["Set yes/no calculation step"]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-boolean-from-condition"}, ["Turn this step's condition into a yes/no calculation"]],
+    ["p", {"class": "muted"}, ["The second button moves the condition made with the condition controls into the calculation, removing that step's availability condition so both true and false can be assigned. It does not run the workflow."]],
+    ["h3", {}, ["Named local outputs"]],
+    ["p", {"class": "muted"}, ["Bind a named result to an input or variable in this run. Results appear only after success, remain local, and inherit the source's type and privacy. Protected values stay masked. No website or service receives a result."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Result name ",
+        ["input", {"id": "skin-studio-output-name", "maxlength": "128", "autocomplete": "off"}, []]
+      ]],
+      ["label", {}, [
+        "Source input ",
+        ["select", {"id": "skin-studio-output-input", "class": "button"}, []]
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-output-add"}, ["Add named output"]]
+    ]],
+    ["ul", {"id": "skin-studio-outputs", "class": "list"}, []],
+    ["h3", {}, ["Manual recovery checklist"]],
+    ["p", {"class": "muted"}, ["Add up to eight explicit human reviews for a failed or cancelled Mission. They are shown only after every pending action and wait settles. Checking a review never sends, deletes, publishes, navigates, repeats an action, rolls a website back, or changes a failed run into success."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Recovery review ",
+        ["input", {"id": "skin-studio-compensation-name", "maxlength": "128", "autocomplete": "off"}, []]
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-compensation-add"}, ["Add recovery review"]]
+    ]],
+    ["ul", {"id": "skin-studio-compensation-steps", "class": "list", "aria-label": "Manual recovery reviews"}, []],
+    ["h3", {}, ["Try the workflow"]],
+    ["p", {"class": "muted"}, ["Try input values and step completion here. Actions are simulated. Values are cleared when the draft changes or this page closes."]],
+    ["div", {"id": "skin-studio-simulation-inputs", "class": "grid"}, []],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-simulate"}, ["Run simulation"]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-simulation-reset"}, ["Reset simulation"]],
+    ["p", {"id": "skin-studio-simulation-status", "role": "status", "aria-live": "polite"}, []],
+    ["ol", {"id": "skin-studio-simulation-steps", "class": "list"}, []],
+    ["ul", {"id": "skin-studio-simulation-outputs", "class": "list", "aria-label": "Simulated local outputs"}, []],
+    ["h3", {}, ["Simulation trace"]],
+    ["p", {"class": "muted"}, ["Local rehearsal only, not evidence of a real browser action. Records step IDs and fixed event types, never input values, variable values, page content or credentials. The latest 128 events stay in memory only. Changing source, workflow or input values, resetting, or closing Studio clears the trace."]],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-simulation-trace-clear"}, ["Clear trace only"]],
+    ["p", {"id": "skin-studio-simulation-trace-status", "role": "status", "aria-live": "polite"}, []],
+    ["ol", {"id": "skin-studio-simulation-trace", "class": "list", "aria-label": "Simulated step event sequence"}, []]
+  ].map(studioControl));
   anchor.insertAdjacentElement('afterend', section);
   const get = id => section.querySelector('#skin-studio-' + id);
   const stepChoice = get('condition-step'), inputChoice = get('condition-input');

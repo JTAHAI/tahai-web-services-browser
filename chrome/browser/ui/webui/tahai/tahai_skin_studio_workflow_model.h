@@ -593,22 +593,51 @@ inline constexpr char kSkinStudioWorkflowModelJs[] = R"TAHAI(
   if (!source || !status || !title) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Package workflows</h3>
-    <p class="muted">Edit each workflow independently. Choosing one here does not change a mode or start a run.</p>
-    <div class="grid"><label>Workflow <select id="skin-studio-workflow-select" class="button"></select></label>
-    <label>New or copy name <input id="skin-studio-workflow-new-name" maxlength="128" autocomplete="off"></label></div>
-    <div class="actions"><button type="button" class="button" id="skin-studio-workflow-create">New workflow</button>
-    <button type="button" class="button" id="skin-studio-workflow-copy">Copy selected workflow</button>
-    <button type="button" class="button" id="skin-studio-workflow-remove">Remove unused workflow</button></div>
-    <div class="grid"><label>Mode <select id="skin-studio-workflow-mode" class="button"></select></label>
-    <button type="button" class="button" id="skin-studio-workflow-bind">Use selected workflow for this mode</button></div>
-    <p id="skin-studio-workflow-binding" class="muted"></p>
-    <h3>Local workflow starters</h3>
-    <p class="muted">Preview a starter, then add an independent editable workflow. Existing definitions, mode bindings, surfaces and permissions stay unchanged. These are local manual-work checklists, not complete surface templates or connected service integrations.</p>
-    <label>Starter <select id="skin-studio-workflow-template-choice" class="button"></select></label>
-    <p id="skin-studio-workflow-template-description" class="muted"></p>
-    <ol id="skin-studio-workflow-template-preview" class="list" aria-label="Starter step preview"></ol>
-    <button type="button" class="button" id="skin-studio-workflow-template">Add starter as new workflow</button>`;
+  // These controls are fixed source declarations. Build DOM nodes directly:
+  // string HTML sinks are forbidden by the WebUI Trusted Types policy.
+  const studioControl = ([tag, attributes, children]) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children.map(child => typeof child === 'string' ?
+        document.createTextNode(child) : studioControl(child)));
+    return node;
+  };
+  section.append(...[
+    ["h3", {}, ["Package workflows"]],
+    ["p", {"class": "muted"}, ["Edit each workflow independently. Choosing one here does not change a mode or start a run."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Workflow ",
+        ["select", {"id": "skin-studio-workflow-select", "class": "button"}, []]
+      ]],
+      ["label", {}, [
+        "New or copy name ",
+        ["input", {"id": "skin-studio-workflow-new-name", "maxlength": "128", "autocomplete": "off"}, []]
+      ]]
+    ]],
+    ["div", {"class": "actions"}, [
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-workflow-create"}, ["New workflow"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-workflow-copy"}, ["Copy selected workflow"]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-workflow-remove"}, ["Remove unused workflow"]]
+    ]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Mode ",
+        ["select", {"id": "skin-studio-workflow-mode", "class": "button"}, []]
+      ]],
+      ["button", {"type": "button", "class": "button", "id": "skin-studio-workflow-bind"}, ["Use selected workflow for this mode"]]
+    ]],
+    ["p", {"id": "skin-studio-workflow-binding", "class": "muted"}, []],
+    ["h3", {}, ["Local workflow starters"]],
+    ["p", {"class": "muted"}, ["Preview a starter, then add an independent editable workflow. Existing definitions, mode bindings, surfaces and permissions stay unchanged. These are local manual-work checklists, not complete surface templates or connected service integrations."]],
+    ["label", {}, [
+      "Starter ",
+      ["select", {"id": "skin-studio-workflow-template-choice", "class": "button"}, []]
+    ]],
+    ["p", {"id": "skin-studio-workflow-template-description", "class": "muted"}, []],
+    ["ol", {"id": "skin-studio-workflow-template-preview", "class": "list", "aria-label": "Starter step preview"}, []],
+    ["button", {"type": "button", "class": "button", "id": "skin-studio-workflow-template"}, ["Add starter as new workflow"]]
+  ].map(studioControl));
   title.parentElement.before(section);
   const get = id => section.querySelector('#skin-studio-workflow-' + id);
   const selection = get('select'), modeChoice = get('mode'), newName = get('new-name');
@@ -939,23 +968,59 @@ inline constexpr char kSkinStudioWorkflowInputBootstrapJs[] = R"TAHAI(
   if (!steps || document.querySelector('#skin-studio-add-input')) return;
   const section = document.createElement('section');
   section.className = 'mode-config-group';
-  section.innerHTML = `<h3>Local workflow inputs</h3>
-    <p class="muted">Inputs stay in the profile-local Mission run and never enter skin exports, Evidence Packs, handoffs, or capsules.
-    Private values require the Protected option: masked entry and OS-encrypted storage in a regular profile.
-    Protected inputs cannot drive branches. A URL is only a stored reference, not a request to contact it.</p>
-    <div class="grid"><label>Input type <select id="skin-studio-input-type" class="button">
-      <option value="text">Text</option><option value="number">Number</option>
-      <option value="boolean">Yes / no</option><option value="selection">Selection</option>
-      <option value="date">Calendar date</option><option value="url">Website URL reference</option>
-    </select></label><label>Input name <input id="skin-studio-input-name" maxlength="128" autocomplete="off"></label>
-    <label>Selection options (comma-separated) <input id="skin-studio-input-options" maxlength="1024" autocomplete="off"></label>
-    <label><input id="skin-studio-input-required" type="checkbox"> Required before start</label>
-    <label><input id="skin-studio-input-protected" type="checkbox"> Protected value (OS-encrypted, never exported)</label>
-    <label>Minimum (optional) <input id="skin-studio-input-lower" maxlength="32" autocomplete="off" aria-describedby="skin-studio-input-limit-help"></label>
-    <label>Maximum (optional) <input id="skin-studio-input-upper" maxlength="32" autocomplete="off" aria-describedby="skin-studio-input-limit-help"></label>
-    <p id="skin-studio-input-limit-help" class="muted"></p>
-    <button id="skin-studio-add-input" class="button" type="button">Add input</button></div>
-    <ul id="skin-studio-workflow-inputs" class="list"></ul>`;
+  // These controls are fixed source declarations. Build DOM nodes directly:
+  // string HTML sinks are forbidden by the WebUI Trusted Types policy.
+  const studioControl = ([tag, attributes, children]) => {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+    node.append(...children.map(child => typeof child === 'string' ?
+        document.createTextNode(child) : studioControl(child)));
+    return node;
+  };
+  section.append(...[
+    ["h3", {}, ["Local workflow inputs"]],
+    ["p", {"class": "muted"}, ["Inputs stay in the profile-local Mission run and never enter skin exports, Evidence Packs, handoffs, or capsules.\n    Private values require the Protected option: masked entry and OS-encrypted storage in a regular profile.\n    Protected inputs cannot drive branches. A URL is only a stored reference, not a request to contact it."]],
+    ["div", {"class": "grid"}, [
+      ["label", {}, [
+        "Input type ",
+        ["select", {"id": "skin-studio-input-type", "class": "button"}, [
+          ["option", {"value": "text"}, ["Text"]],
+          ["option", {"value": "number"}, ["Number"]],
+          ["option", {"value": "boolean"}, ["Yes / no"]],
+          ["option", {"value": "selection"}, ["Selection"]],
+          ["option", {"value": "date"}, ["Calendar date"]],
+          ["option", {"value": "url"}, ["Website URL reference"]]
+        ]]
+      ]],
+      ["label", {}, [
+        "Input name ",
+        ["input", {"id": "skin-studio-input-name", "maxlength": "128", "autocomplete": "off"}, []]
+      ]],
+      ["label", {}, [
+        "Selection options (comma-separated) ",
+        ["input", {"id": "skin-studio-input-options", "maxlength": "1024", "autocomplete": "off"}, []]
+      ]],
+      ["label", {}, [
+        ["input", {"id": "skin-studio-input-required", "type": "checkbox"}, []],
+        " Required before start"
+      ]],
+      ["label", {}, [
+        ["input", {"id": "skin-studio-input-protected", "type": "checkbox"}, []],
+        " Protected value (OS-encrypted, never exported)"
+      ]],
+      ["label", {}, [
+        "Minimum (optional) ",
+        ["input", {"id": "skin-studio-input-lower", "maxlength": "32", "autocomplete": "off", "aria-describedby": "skin-studio-input-limit-help"}, []]
+      ]],
+      ["label", {}, [
+        "Maximum (optional) ",
+        ["input", {"id": "skin-studio-input-upper", "maxlength": "32", "autocomplete": "off", "aria-describedby": "skin-studio-input-limit-help"}, []]
+      ]],
+      ["p", {"id": "skin-studio-input-limit-help", "class": "muted"}, []],
+      ["button", {"id": "skin-studio-add-input", "class": "button", "type": "button"}, ["Add input"]]
+    ]],
+    ["ul", {"id": "skin-studio-workflow-inputs", "class": "list"}, []]
+  ].map(studioControl));
   steps.insertAdjacentElement('afterend', section);
 })();
 )TAHAI";

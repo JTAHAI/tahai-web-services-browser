@@ -25,7 +25,7 @@ class Element {
   dispatchEvent(event){for(const fn of this.listeners.get(event.type)||[])fn(event)}
   click(){if(!this.disabled)this.dispatchEvent(new Event('click'))}
   focus(){this.focused=true}
-  setAttribute(name,value){if(name==='style'){this.styleText=String(value);return}this[name]=String(value)}
+  setAttribute(name,value){if(name==='style')throw new Error('WebUI CSP forbids inline style attributes');this[name]=String(value)}
   set innerHTML(html){
     this.replaceChildren();const stack=[this],voids=new Set(['input','br']);
     for(const token of html.match(/<[^>]*>|[^<]+/g)||[]){

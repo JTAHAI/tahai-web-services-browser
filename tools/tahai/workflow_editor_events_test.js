@@ -65,21 +65,13 @@ class Element {
   click() { if (!this.disabled) this.dispatchEvent(new Event('click')); }
   focus() { this.focused = true; }
   setAttribute(name, value) { this[name] = String(value); }
-  set innerHTML(html) {
-    this.replaceChildren();
-    const stack = [this], voidTags = new Set(['input', 'br']);
-    for (const token of html.match(/<[^>]*>|[^<]+/g) || []) {
-      if (token.startsWith('</')) { stack.pop(); continue; }
-      if (!token.startsWith('<')) { stack.at(-1)._text += token; continue; }
-      const tag = token.match(/^<([a-z0-9-]+)/)[1], child = new Element(tag);
-      for (const match of token.matchAll(/([a-z-]+)="([^"]*)"/g)) child[match[1]] = match[2];
-      stack.at(-1).append(child); if (!voidTags.has(tag)) stack.push(child);
-    }
-    assert.equal(stack.length, 1, 'Test fixture HTML must be balanced');
+  set innerHTML(_html) {
+    throw new TypeError('WebUI requires TrustedHTML; string HTML is forbidden');
   }
 }
 const body = new Element('body', true), document = {body,
-  addEventListener: () => {}, querySelector: selector => body.querySelector(selector), createElement: tag => new Element(tag)};
+  addEventListener: () => {}, querySelector: selector => body.querySelector(selector), createElement: tag => new Element(tag),
+  createTextNode: text => { const node = new Element('#text'); node.textContent = text; return node; }};
 const add = (tag, id, value = '') => {
   const node = new Element(tag); node.id = 'skin-studio-' + id; node.value = value; body.append(node); return node;
 };
