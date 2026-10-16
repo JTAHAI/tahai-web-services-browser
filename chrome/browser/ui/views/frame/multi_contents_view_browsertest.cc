@@ -235,7 +235,7 @@ class TahaiWorkspaceVisualInterruption : public BrowserCollectionObserver,
   void OnBrowserCreated(BrowserWindowInterface* browser) override {
     browsers_.Reset();
     restored = browser->GetWeakPtr();
-    tabs_.Observe(browser->GetTabStripModel());
+    browser->GetTabStripModel()->AddObserver(this);
   }
 
   void OnTabGroupChanged(const TabGroupChange& change) override {
@@ -245,7 +245,7 @@ class TahaiWorkspaceVisualInterruption : public BrowserCollectionObserver,
     }
     // Visual changes are outside the tab-strip mutation guard. Stop observing
     // before the deliberate structural change emits its own notifications.
-    tabs_.Reset();
+    TabStripModelObserver::StopObservingAll(this);
     std::move(callback_).Run(restored.get());
   }
 
@@ -255,7 +255,6 @@ class TahaiWorkspaceVisualInterruption : public BrowserCollectionObserver,
   base::OnceCallback<void(BrowserWindowInterface*)> callback_;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       browsers_{this};
-  base::ScopedObservation<TabStripModel, TabStripModelObserver> tabs_{this};
 };
 
 std::optional<std::string> SaveTahaiGroupedRestoreFixture(Browser* browser) {
