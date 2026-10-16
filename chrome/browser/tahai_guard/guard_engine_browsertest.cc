@@ -133,7 +133,7 @@ IN_PROC_BROWSER_TEST_F(TahaiGuardEngineBrowserTest,
   ASSERT_TRUE(configured);
   ASSERT_EQ(Status::kReady, configured->status);
 
-  std::optional<base::Process> service;
+  std::optional<GuardProcessSnapshot> service;
   ASSERT_TRUE(base::test::RunUntil([&] {
     service = FindRunningGuardService();
     return service.has_value();

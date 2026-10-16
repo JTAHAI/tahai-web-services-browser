@@ -940,6 +940,7 @@ constexpr char kLightSurfaceCss[] = R"TAHAI(
 textarea.search{display:block;box-sizing:border-box;width:100%;max-width:100%;resize:vertical}
 /* Separate command titles from their descriptions at every viewport width. */
 .command{gap:14px;font:inherit;line-height:1.4}
+.command[hidden]{display:none}
 .command>span:first-child{min-width:0;display:grid;gap:4px}
 .command>span:first-child>.muted{display:block;font-size:.875rem}
 .command .scope{padding-left:8px}
@@ -987,7 +988,7 @@ constexpr char kLocalOiCapabilityCss[] = R"TAHAI(
 )TAHAI";
 
 constexpr char kCommandJs[] = R"TAHAI(
-(()=>{'use strict';const input=document.querySelector('#command-input'),list=document.querySelector('#command-list'),status=document.querySelector('#command-status'),commands=[...list.querySelectorAll('.command')];function render(){const q=input.value.trim().toLowerCase();if(!q&&!commands.some(command=>command.hidden)){status.textContent=`${commands.length} approved commands available.`;return}let visible=0;for(const command of commands){const match=!q||command.dataset.tahaiSearch.includes(q);command.hidden=!match;visible+=Number(match)}status.textContent=`${visible} approved commands available.`}for(const command of commands){command.addEventListener('click',()=>{status.textContent=`Running ${command.dataset.tahaiLabel}.`;chrome.send('executeTahaiCommand',[command.dataset.tahaiCommand])})}input.addEventListener('input',render);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select()}});render();})();
+(()=>{'use strict';const input=document.querySelector('#command-input'),list=document.querySelector('#command-list'),status=document.querySelector('#command-status'),commands=[...list.querySelectorAll('.command')];function render(){const q=input.value.trim().toLowerCase();if(!q&&!commands.some(command=>command.hidden)){status.textContent=`${commands.length} approved commands available.`;return}let visible=0;for(const command of commands){const match=!q||[command.dataset.tahaiSearch,command.dataset.tahaiLabel,command.textContent].join(' ').toLowerCase().includes(q);command.hidden=!match;visible+=Number(match)}status.textContent=`${visible} approved commands available.`}for(const command of commands){command.addEventListener('click',()=>{status.textContent=`Running ${command.dataset.tahaiLabel}.`;chrome.send('executeTahaiCommand',[command.dataset.tahaiCommand])})}input.addEventListener('input',render);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();input.focus();input.select()}});render();})();
 )TAHAI";
 
 constexpr char kRecallJs[] = R"TAHAI(

@@ -103,6 +103,19 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path.startswith('/brand.png'):
             data = (ROOT / 'chrome/app/theme/tahai/brand/royal_mark_512.png').read_bytes()
             content_type = 'image/png'
+        elif self.path == '/command-center':
+            data = ('<!doctype html><html><meta charset="utf-8"><style>' + CSS +
+                    '</style><body><input id="command-input"><p id="command-status"></p>'
+                    '<div id="command-list">'
+                    '<button class="command" data-tahai-command="modes.open" data-tahai-label="Open Work Modes" data-tahai-search="mode context">'
+                    '<strong>Open Work Modes</strong><span>Choose your workspace</span></button>'
+                    '<button class="command" data-tahai-command="mission.open" data-tahai-label="Open Mission Control" data-tahai-search="mission evidence">'
+                    '<strong>Open Mission Control</strong><span>Review readiness</span></button>'
+                    '<button class="command" data-tahai-command="support.open" data-tahai-label="Open Support" data-tahai-search="help diagnostics">'
+                    '<strong>Open Support</strong><span>Inspect transport</span></button></div>'
+                    '<script>window.sent=[];window.chrome={send:(name,args)=>sent.push({name,args})};</script>'
+                    '<script>' + literal(UI, 'kCommandJs') + '</script></body></html>').encode()
+            content_type = 'text/html; charset=utf-8'
         elif self.path.startswith('/commands'):
             data = ('<!doctype html><html><meta charset="utf-8"><style>' + CSS +
                     '</style><body class="theme-dark mode-daily accent-mode surface-mode">'
@@ -163,6 +176,31 @@ def main():
                             raise SystemExit('Zero renderer checks selected')
                         checks.extend(selected)
                     page.emulate_media(forced_colors='none')
+                    # Inspect painted boxes, not just hidden flags or result counts:
+                    # author display:grid previously made filtered commands visible.
+                    for theme in ('light', 'dark'):
+                        page.goto(f'http://127.0.0.1:{server.server_port}/commands', timeout=20000)
+                        page.evaluate('(theme)=>document.body.className="theme-"+theme+" mode-daily accent-mode surface-mode"', theme)
+                        page.keyboard.press('Control+Shift+Space')
+                        for query in ('quad', '  QUAD  ', 'not-a-command', ''):
+                            page.locator('#tahai-palette-input').fill(query)
+                            counts = page.locator('[data-tahai-palette-command]').evaluate_all(
+                                '(nodes)=>({logical:nodes.filter(n=>!n.hidden).length,painted:nodes.filter(n=>n.getClientRects().length).length,total:nodes.length})')
+                            expected = 0 if query == 'not-a-command' else counts['total'] if not query else 3
+                            checks.append({'name': f'{theme} palette painted results for {query!r}',
+                                           'pass': counts['painted'] == counts['logical'] == expected})
+                        page.goto(f'http://127.0.0.1:{server.server_port}/command-center', timeout=20000)
+                        page.evaluate('(theme)=>document.body.className="theme-"+theme+" mode-daily accent-mode surface-mode"', theme)
+                        for query, expected in [('work', 1), ('  WORK  ', 1), ('Open Work Modes', 1),
+                                                ('readiness', 1), ('evidence', 1), ('not-a-command', 0), ('', 3)]:
+                            page.locator('#command-input').fill(query)
+                            painted = page.locator('.command').evaluate_all('(nodes)=>nodes.filter(n=>n.getClientRects().length).length')
+                            checks.append({'name': f'{theme} command center painted results for {query!r}',
+                                           'pass': painted == expected and page.locator('#command-status').inner_text() == f'{expected} approved commands available.'})
+                        page.locator('#command-input').fill('evidence')
+                        page.locator('[data-tahai-command="mission.open"]').click()
+                        checks.append({'name': f'{theme} filtered command click preserves native dispatch',
+                                       'pass': page.evaluate("sent.length===1 && sent[0].name==='executeTahaiCommand' && sent[0].args[0]==='mission.open'")})
                     page.goto(f'http://127.0.0.1:{server.server_port}/commands', timeout=20000)
                     opener = page.locator('#opener')
                     opener.focus()
